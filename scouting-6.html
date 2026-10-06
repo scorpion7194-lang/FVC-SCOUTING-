@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fairview Scouting</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--ink:#1c2b1f;--paper:#f6f4ec;--acc:#2d6a3e;--line:#cfcab8;--warn:#b3402a}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font:16px/1.4 system-ui,sans-serif;color:var(--ink);background:var(--paper)}
+#map{position:absolute;inset:0}
+.bar{position:absolute;left:0;right:0;bottom:0;z-index:1000;display:flex;gap:6px;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));background:var(--paper);border-top:2px solid var(--ink)}
+.bar button,.sheet button{flex:1;min-height:48px;font:600 15px system-ui;border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:8px;padding:0 8px}
+button.go{background:var(--acc);color:#fff;border-color:var(--acc)}
+button.no{color:var(--warn);border-color:var(--warn)}
+#dinfo,#einfo{flex:2;align-self:center;font-weight:700;text-align:center}
+.hide{display:none!important}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:1100;max-height:85%;overflow:auto;background:var(--paper);border-top:3px solid var(--ink);padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+.sheet h2{margin:0 0 10px;font-size:20px}
+.sheet label{display:block;font-weight:600;margin:10px 0 3px}
+.sheet input[type=text],.sheet input[type=date],.sheet select,.sheet textarea{width:100%;font:16px system-ui;padding:10px;border:2px solid var(--line);border-radius:8px;background:#fff}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0}
+.row input[type=text]{flex:1}
+.row input[type=color]{width:44px;height:44px;border:2px solid var(--line);border-radius:8px;padding:2px;background:#fff}
+.row input[type=checkbox],.row input[type=radio]{width:24px;height:24px}
+.row button{flex:none;min-height:44px}
+.btns{display:flex;gap:8px;margin-top:14px}
+.pin{width:26px;height:26px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #000;font-size:13px;line-height:20px;text-align:center}
+.lbl{background:rgba(0,0,0,.65);border:0;color:#fff;font-weight:700;box-shadow:none}
+.lbl:before{display:none}
+.me{background:#1a73e8;border:3px solid #fff;border-radius:50%}
+.pop img{max-width:200px;display:block;margin:6px 0;border-radius:6px}
+.small{font-size:13px;color:#555}
+#fab{position:absolute;right:12px;top:calc(80px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;padding:0}
+#drawbar{flex-direction:column}
+#drawbar .r{display:flex;gap:6px}
+#drawbar button{font-size:14px;padding:0 4px}
+#dinfo,#einfo{position:fixed;top:0;left:0;right:0;z-index:1000;flex:none;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:rgba(28,43,31,.92);color:#fff;font-size:18px;font-weight:400;text-align:center}
+#dinfo span,#einfo span{margin:0 10px}
+.sl{position:absolute;transform:translate(-50%,-26px);background:rgba(0,0,0,.7);color:#fff;font:600 13px system-ui;padding:2px 6px;border-radius:4px;white-space:nowrap;pointer-events:none}
+button.on{background:var(--ink)!important;color:#fff!important}
+#xh{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;z-index:900;pointer-events:none;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 2px #000,inset 0 0 0 2px #000}
+#xh:before,#xh:after{content:'';position:absolute;background:#fff;box-shadow:0 0 0 1px #000}
+#xh:before{left:50%;top:-14px;bottom:-14px;width:2px;margin-left:-1px}
+#xh:after{top:50%;left:-14px;right:-14px;height:2px;margin-top:-1px}
+.vh{width:28px;height:28px;border-radius:50%;background:#fff;border:4px solid #000;box-sizing:border-box}
+.mh{width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #000;box-sizing:border-box;opacity:.85}
+.pop button{min-height:40px;border:2px solid var(--ink);background:#fff;border-radius:8px;padding:0 10px;margin:6px 4px 0 0;font-weight:600}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="bar" id="main">
+  <button id="bLayers">Layers</button>
+  <button id="bDraw">Draw / measure</button>
+  <button id="bObs" class="go">Photo + note</button>
+  <button id="bLoc">My location</button>
+</div>
+
+<button id="fab" aria-label="My location"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="#1c2b1f"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
+<div id="xh" class="hide"></div>
+<div class="bar hide" id="drawbar">
+  <div id="dinfo"></div>
+  <div class="r"><button id="dCancel" class="no">Cancel</button><button id="dUndo">Undo</button><button id="dDone" class="go">Finish</button></div>
+  <div class="r"><button id="dXh">Crosshair</button><button id="dDrop" class="go hide">Drop point</button><button id="dGps">+ GPS</button><button id="dWalk">Walk</button></div>
+</div>
+
+<div class="bar hide" id="editbar">
+  <button id="eCancel" class="no">Cancel</button>
+  <div id="einfo"></div>
+  <button id="eDone" class="go">Save corners</button>
+</div>
+
+<div class="sheet hide" id="sheet"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+let S={layers:[{id:'L1',name:'Fields',color:'#f2c94c',visible:true},{id:'L2',name:'Scouting notes',color:'#35a7ff',visible:true}],items:[],active:'L1',obsLayer:'L2'};
+
+/* storage: IndexedDB so photos don't hit the small localStorage limit */
+const DB=new Promise(r=>{try{const q=indexedDB.open('scout',1);q.onupgradeneeded=()=>q.result.createObjectStore('s');q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)}catch(e){r(null)}});
+async function load(){try{const d=await DB;return await new Promise(r=>{const q=d.transaction('s').objectStore('s').get('state');q.onsuccess=()=>r(q.result);q.onerror=()=>r()})}catch(e){}}
+async function save(){try{const d=await DB;d.transaction('s','readwrite').objectStore('s').put(S,'state')}catch(e){}}
+
+/* map */
+const map=L.map('map',{zoomControl:false}).setView([51.40,-113.80],11);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri World Imagery'}).addTo(map);
+const G=L.layerGroup().addTo(map);
+
+/* area on a sphere, square metres */
+function area(p){if(p.length<3)return 0;const R=6378137,r=Math.PI/180;let s=0;for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];s+=(b[1]-a[1])*r*(2+Math.sin(a[0]*r)+Math.sin(b[0]*r))}return Math.abs(s*R*R/2)}
+function dist(a,b){const r=Math.PI/180,R=6371008,dl=(b[0]-a[0])*r,dg=(b[1]-a[1])*r,x=Math.sin(dl/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+const per=p=>{let t=0;for(let i=0;i<p.length;i++)t+=dist(p[i],p[(i+1)%p.length]);return t};
+const fmtLen=m=>{const f=m*3.28084;return f>=1320?(f/5280).toFixed(2)+' mi':Math.round(f)+' ft'};
+const fm=p=>fmt(area(p))+', perimeter '+fmtLen(per(p));
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+const fmt=m=>(m/4046.856).toFixed(2)+' ac ('+(m/10000).toFixed(2)+' ha)';
+
+/* GPS */
+let gps=null,meMk=null,watching=false,walk=false,xhOn=false;
+function startGps(cb){
+  if(!navigator.geolocation){alert('This browser has no GPS access.');return}
+  if(watching){if(gps&&cb)cb();return}
+  watching=true;
+  navigator.geolocation.watchPosition(p=>{
+    const first=!gps;gps={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};
+    if(!meMk)meMk=L.marker([gps.lat,gps.lng],{icon:L.divIcon({className:'',html:'<div class="me" style="width:18px;height:18px"></div>',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(map);
+    else meMk.setLatLng([gps.lat,gps.lng]);
+    if(walk&&draw)walkPt();
+    if(first){map.setView([gps.lat,gps.lng],17);if(cb)cb()}
+  },e=>{watching=false;alert('Could not get location: '+e.message+'\nGPS needs the page to be opened over https and location allowed.')},{enableHighAccuracy:true,maximumAge:2000});
+}
+const goMe=()=>{if(gps)map.setView([gps.lat,gps.lng],Math.max(map.getZoom(),17));else startGps()};
+$('#bLoc').onclick=goMe;$('#fab').onclick=goMe;
+
+/* sheets */
+const sheet=$('#sheet');
+function open(html){sheet.innerHTML=html;sheet.classList.remove('hide');$('#main').classList.add('hide')}
+function close(){sheet.classList.add('hide');sheet.innerHTML='';if(!draw)$('#main').classList.remove('hide')}
+const layerOpts=sel=>S.layers.map(l=>'<option value="'+l.id+'"'+(l.id===sel?' selected':'')+'>'+esc(l.name)+'</option>').join('');
+
+/* layers */
+function layersSheet(){
+  open('<h2>Layers</h2><div class="small">Tap the circle to choose the layer you are drawing into.</div>'+
+  S.layers.map(l=>'<div class="row"><input type="checkbox" '+(l.visible?'checked':'')+' onchange="lyr(\''+l.id+'\',\'visible\',this.checked)">'+
+  '<input type="color" value="'+l.color+'" onchange="lyr(\''+l.id+'\',\'color\',this.value)">'+
+  '<input type="text" value="'+esc(l.name)+'" onchange="lyr(\''+l.id+'\',\'name\',this.value)">'+
+  '<input type="radio" name="act" '+(S.active===l.id?'checked':'')+' onchange="S.active=\''+l.id+'\';save()">'+
+  '<button class="no" onclick="delLayer(\''+l.id+'\')">✕</button></div>').join('')+
+  '<h2 style="margin-top:18px">Add layer</h2><div class="row"><input type="color" id="nc" value="#e5484d"><input type="text" id="nn" placeholder="e.g. Wild oat patch"><button class="go" onclick="addLayer()">Add</button></div>'+
+  '<div class="btns"><button onclick="exportData()">Export</button><button class="go" onclick="close()">Done</button></div>');
+}
+function lyr(id,k,v){const l=S.layers.find(x=>x.id===id);l[k]=v;save();redraw()}
+function addLayer(){const n=$('#nn').value.trim();if(!n)return;const l={id:uid(),name:n,color:$('#nc').value,visible:true};S.layers.push(l);S.active=l.id;save();layersSheet();redraw()}
+function delLayer(id){const n=S.items.filter(i=>i.layer===id).length;if(!confirm('Delete this layer'+(n?' and its '+n+' items':'')+'?'))return;S.layers=S.layers.filter(l=>l.id!==id);S.items=S.items.filter(i=>i.layer!==id);if(!S.layers.find(l=>l.id===S.active))S.active=(S.layers[0]||{}).id;save();layersSheet();redraw()}
+$('#bLayers').onclick=layersSheet;
+
+/* render */
+function redraw(){
+  G.clearLayers();
+  S.layers.forEach(l=>{if(!l.visible)return;
+    S.items.filter(i=>i.layer===l.id).forEach(i=>{
+      if(edit&&edit.it===i)return;
+      let m;
+      if(i.type==='poly'){m=L.polygon(i.pts,{color:l.color,weight:3,fillOpacity:.2});m.bindTooltip(esc(i.name)+' · '+(area(i.pts)/4046.856).toFixed(1)+' ac',{permanent:true,direction:'center',className:'lbl'})}
+      else m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})});
+      m.bindPopup(()=>pop(i,l));m.addTo(G);
+    });
+  });
+}
+function pop(i,l){
+  let h='<div class="pop"><b>'+esc(i.name||i.stage||'Note')+'</b><div class="small">'+esc(l.name)+' · '+new Date(i.t).toLocaleString()+'</div>';
+  if(i.type==='poly')h+='<div>'+fm(i.pts)+'</div>'+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
+  else{if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
+    h+='<div class="small">'+i.pos[0].toFixed(5)+', '+i.pos[1].toFixed(5)+(i.acc?' (±'+Math.round(i.acc)+' m)':'')+'</div>';
+    (i.photos||[]).forEach(p=>h+='<img src="'+p+'">')}
+  if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="copyItem(\''+i.id+'\')">Copy</button>';
+  return h+'<button class="no" onclick="delItem(\''+i.id+'\')">Delete</button></div>';
+}
+function delItem(id){if(!confirm('Delete this item?'))return;S.items=S.items.filter(i=>i.id!==id);map.closePopup();save();redraw()}
+
+/* draw / measure */
+let draw=null;
+/* corner dots (drag to move), small middle dots (drag out to add a corner), side lengths */
+const cornerIcon=L.divIcon({className:'',html:'<div class="vh"></div>',iconSize:[28,28],iconAnchor:[14,14]});
+const midIcon=L.divIcon({className:'',html:'<div class="mh"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+const fmtFt=m=>{const f=m*3.28084;return (f>=100?Math.round(f):f.toFixed(1))+' ft'};
+function handles(o){
+  const pts=o.pts;o.poly.setLatLngs(pts);o.grp.clearLayers();
+  const n=pts.length,show=()=>{$(o.info).innerHTML=topInfo(pts)};
+  pts.forEach((p,i)=>{
+    const m=L.marker(p,{draggable:true,icon:cornerIcon,zIndexOffset:500}).addTo(o.grp);
+    m.on('drag',e=>{const q=e.target.getLatLng();pts[i]=[q.lat,q.lng];o.poly.setLatLngs(pts);show()});
+    m.on('dragend',o.redo);
+    if(o.removable)m.on('click',()=>{if(n>3&&confirm('Remove this corner?')){pts.splice(i,1);o.redo()}});
+  });
+  if(n>1)for(let i=0;i<(n>2?n:1);i++){
+    const a=pts[i],b=pts[(i+1)%n],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+    const px=map.latLngToContainerPoint(a).distanceTo(map.latLngToContainerPoint(b));
+    if(px>70)L.marker(mid,{interactive:false,icon:L.divIcon({className:'',html:'<div class="sl">'+fmtFt(dist(a,b))+'</div>',iconSize:[0,0]})}).addTo(o.grp);
+    const m=L.marker(mid,{draggable:true,icon:midIcon,zIndexOffset:400}).addTo(o.grp);
+    let k;
+    m.on('dragstart',e=>{k=i+1;pts.splice(k,0,mid.slice())});
+    m.on('drag',e=>{const q=e.target.getLatLng();pts[k]=[q.lat,q.lng];o.poly.setLatLngs(pts);show()});
+    m.on('dragend',o.redo);
+  }
+  show();
+}
+map.on('zoomend',()=>{if(draw)upd();else if(edit)eupd()});
+const topInfo=p=>p.length<3?'Tap corners ('+p.length+')':'<span>Area <b>'+(area(p)/4046.856).toFixed(2)+' ac</b></span><span>Perimeter <b>'+fmtLen(per(p))+'</b></span>';
+function upd(){handles({pts:draw.pts,poly:draw.poly,grp:draw.mk,info:'#dinfo',redo:upd})}
+$('#bDraw').onclick=()=>{
+  const l=S.layers.find(x=>x.id===S.active);
+  draw={pts:[],poly:L.polygon([],{color:l?l.color:'#fff',weight:3,dashArray:'6 6',fillOpacity:.15}).addTo(map),mk:L.layerGroup().addTo(map)};
+  $('#main').classList.add('hide');$('#drawbar').classList.remove('hide');upd();
+};
+map.on('click',e=>{if(!draw||xhOn)return;draw.pts.push([e.latlng.lat,e.latlng.lng]);upd()});
+$('#dUndo').onclick=()=>{draw.pts.pop();upd()};
+$('#dXh').onclick=()=>{xhOn=!xhOn;$('#xh').classList.toggle('hide',!xhOn);$('#dDrop').classList.toggle('hide',!xhOn);$('#dXh').classList.toggle('on',xhOn);$('#dXh').textContent=xhOn?'Crosshair on':'Crosshair'};
+$('#dDrop').onclick=()=>{const c=map.getCenter();draw.pts.push([c.lat,c.lng]);upd()};
+function walkPt(){const l=draw.pts[draw.pts.length-1];if(gps.acc>25)return;if(!l||dist(l,[gps.lat,gps.lng])>=5){draw.pts.push([gps.lat,gps.lng]);upd()}}
+$('#dWalk').onclick=()=>{walk=!walk;$('#dWalk').classList.toggle('on',walk);$('#dWalk').textContent=walk?'Stop walk':'Walk';if(walk){if(!watching)startGps();else if(gps)walkPt()}};
+$('#dGps').onclick=()=>{const add=()=>{draw.pts.push([gps.lat,gps.lng]);upd()};if(gps)add();else startGps(add)};
+function resetDrawUI(){walk=false;xhOn=false;$('#xh').classList.add('hide');$('#dDrop').classList.add('hide');['#dXh','#dWalk'].forEach(q=>$(q).classList.remove('on'));$('#dXh').textContent='Crosshair';$('#dWalk').textContent='Walk'}
+function endDraw(){resetDrawUI();map.removeLayer(draw.poly);map.removeLayer(draw.mk);draw=null;$('#drawbar').classList.add('hide');$('#main').classList.remove('hide')}
+$('#dCancel').onclick=endDraw;
+$('#dDone').onclick=()=>{
+  if(draw.pts.length<3){alert('Add at least 3 corners.');return}
+  const l=S.layers.find(x=>x.id===S.active);
+  $('#drawbar').classList.add('hide');
+  open('<h2>'+fm(draw.pts)+'</h2><label>Name</label><input type="text" id="pn" placeholder="e.g. Home North, wild oat patch 1"><label>Date</label><input type="date" id="pd" value="'+today()+'"><label>Notes</label><textarea id="pnote" rows="3" placeholder="e.g. Chicken manure, rate, weather"></textarea><div class="small" style="margin-top:8px">Saves into layer: <b>'+esc(l?l.name:'(none)')+'</b></div>'+
+  '<div class="btns"><button onclick="measureOnly()">Measure only</button><button class="go" onclick="savePoly()">Save</button></div>');
+  sheet.dataset.draw='1';
+};
+function measureOnly(){close();endDraw()}
+function savePoly(){
+  S.items.push({id:uid(),type:'poly',layer:S.active,name:$('#pn').value.trim()||'Unnamed',date:$('#pd').value,note:$('#pnote').value.trim(),pts:draw.pts.slice(),t:Date.now()});
+  save();close();endDraw();redraw();
+}
+
+/* edit a saved field: drag corners, tap + to add a corner, tap a corner to remove it */
+let edit=null;
+function editItem(id){
+  map.closePopup();
+  const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);
+  edit={it,pts:it.pts.map(p=>p.slice()),poly:L.polygon(it.pts,{color:l.color,weight:3,dashArray:'6 6',fillOpacity:.2,interactive:false}).addTo(map),hs:L.layerGroup().addTo(map)};
+  $('#main').classList.add('hide');$('#editbar').classList.remove('hide');redraw();eupd();
+}
+function eupd(){handles({pts:edit.pts,poly:edit.poly,grp:edit.hs,info:'#einfo',redo:eupd,removable:true})}
+function endEdit(){map.removeLayer(edit.poly);map.removeLayer(edit.hs);edit=null;$('#editbar').classList.add('hide');$('#main').classList.remove('hide');redraw()}
+$('#eCancel').onclick=endEdit;
+$('#eDone').onclick=()=>{edit.it.pts=edit.pts;save();endEdit()};
+function detailsSheet(id){const it=S.items.find(i=>i.id===id);map.closePopup();open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'"><label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'"><label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea><div class="btns"><button onclick="close()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
+function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;it.note=$('#dt').value.trim();save();close();redraw()}
+function copyItem(id){const it=S.items.find(i=>i.id===id);S.items.push({...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),t:Date.now()});save();map.closePopup();redraw()}
+
+/* photo + note */
+const STAGES='<optgroup label="Cereals"><option>Emerged</option><option>1–2 leaf</option><option>3–4 leaf</option><option>5+ leaf / tillering</option><option>Stem elongation</option><option>Flag leaf</option><option>Boot</option><option>Heading</option><option>Flowering</option><option>Soft dough</option><option>Hard dough</option><option>Ripe</option></optgroup>'+
+'<optgroup label="Canola"><option>Cotyledon</option><option>2–4 leaf</option><option>5–6 leaf</option><option>Rosette</option><option>Bolting</option><option>Flowering</option><option>Podding</option><option>Seed fill</option><option>Ripe</option></optgroup><optgroup label="Other"><option>Other (see note)</option></optgroup>';
+function shrink(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.7))};im.onerror=()=>r(null);im.src=u})}
+$('#bObs').onclick=()=>{if(!gps)startGps();obsSheet()};
+function obsSheet(){
+  const pos=gps?'GPS fix ±'+Math.round(gps.acc)+' m':'No GPS fix yet, will use the map centre';
+  open('<h2>Photo + note</h2><div class="small" id="gp">'+pos+'</div>'+
+  '<label>Layer</label><select id="ol">'+layerOpts(S.obsLayer)+'</select>'+
+  '<label>Crop</label><input type="text" id="oc" placeholder="e.g. Wheat, canola">'+
+  '<label>Growth stage</label><select id="os"><option value="">Not recorded</option>'+STAGES+'</select>'+
+  '<label>Notes</label><textarea id="on" rows="3" placeholder="Weeds, disease, insects, stand, moisture"></textarea>'+
+  '<label>Photos</label><input type="file" id="of" accept="image/*" capture="environment" multiple>'+
+  '<div class="btns"><button onclick="close()">Cancel</button><button class="go" id="osv" onclick="saveObs()">Save</button></div>');
+}
+async function saveObs(){
+  $('#osv').disabled=true;$('#osv').textContent='Saving…';
+  const photos=[];for(const f of $('#of').files){const d=await shrink(f);if(d)photos.push(d)}
+  const c=map.getCenter(),pos=gps?[gps.lat,gps.lng]:[c.lat,c.lng];
+  S.obsLayer=$('#ol').value;
+  S.items.push({id:uid(),type:'obs',layer:S.obsLayer,pos,acc:gps?gps.acc:null,crop:$('#oc').value.trim(),stage:$('#os').value,note:$('#on').value.trim(),photos,t:Date.now()});
+  save();close();redraw();
+}
+
+/* export as GeoJSON */
+function exportData(){
+  const fc={type:'FeatureCollection',features:S.items.map(i=>{const l=S.layers.find(x=>x.id===i.layer)||{};
+    const g=i.type==='poly'?{type:'Polygon',coordinates:[i.pts.concat([i.pts[0]]).map(p=>[p[1],p[0]])]}:{type:'Point',coordinates:[i.pos[1],i.pos[0]]};
+    return {type:'Feature',geometry:g,properties:{layer:l.name,color:l.color,name:i.name,date:i.date,acres:i.type==='poly'?+(area(i.pts)/4046.856).toFixed(2):undefined,crop:i.crop,stage:i.stage,note:i.note,time:new Date(i.t).toISOString(),photos:i.photos}}})};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(fc)],{type:'application/geo+json'}));a.download='scouting-'+new Date().toISOString().slice(0,10)+'.geojson';a.click();
+}
+
+load().then(d=>{if(d)S=d;redraw()});
+</script>
+</body>
+</html>
