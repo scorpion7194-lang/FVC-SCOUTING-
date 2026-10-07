@@ -56,7 +56,7 @@ button.on{background:var(--ink)!important;color:#fff!important}
   <button id="bLayers">Layers</button>
   <button id="bDraw">Draw / measure</button>
   <button id="bObs" class="go">Photo + note</button>
-  <button id="bLoc">My location</button>
+  <button id="bPt">Soil point</button>
 </div>
 
 <button id="fab" aria-label="My location"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="#1c2b1f"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
@@ -72,6 +72,8 @@ button.on{background:var(--ink)!important;color:#fff!important}
   <div id="einfo"></div>
   <button id="eDone" class="go">Save corners</button>
 </div>
+
+<div class="bar hide" id="pinbar"><button id="pCancel" class="no">Done</button><button id="pGps">At my location</button><button id="pDrop" class="go">Drop at crosshair</button></div>
 
 <div class="sheet hide" id="sheet"></div>
 
@@ -116,12 +118,12 @@ function startGps(cb){
   },e=>{watching=false;alert('Could not get location: '+e.message+'\nGPS needs the page to be opened over https and location allowed.')},{enableHighAccuracy:true,maximumAge:2000});
 }
 const goMe=()=>{if(gps)map.setView([gps.lat,gps.lng],Math.max(map.getZoom(),17));else startGps()};
-$('#bLoc').onclick=goMe;$('#fab').onclick=goMe;
+$('#fab').onclick=goMe;
 
 /* sheets */
 const sheet=$('#sheet');
 function open(html){sheet.innerHTML=html;sheet.classList.remove('hide');$('#main').classList.add('hide')}
-function closeSheet(){sheet.classList.add('hide');sheet.innerHTML='';if(!draw)$('#main').classList.remove('hide')}
+function closeSheet(){sheet.classList.add('hide');sheet.innerHTML='';if(!draw&&!pin)$('#main').classList.remove('hide');if(pin)$('#pinbar').classList.remove('hide')}
 const layerOpts=sel=>S.layers.map(l=>'<option value="'+l.id+'"'+(l.id===sel?' selected':'')+'>'+esc(l.name)+'</option>').join('');
 
 /* layers */
@@ -156,10 +158,11 @@ function redraw(){
 function pop(i,l){
   let h='<div class="pop"><b>'+esc(i.name||i.stage||'Note')+'</b><div class="small">'+esc(l.name)+' · '+new Date(i.t).toLocaleString()+'</div>';
   if(i.type==='poly')h+='<div>'+fm(i.pts)+'</div>'+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
-  else{if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
+  else{if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.depth)h+='<div>Depth: '+esc(i.depth)+'</div>';if(i.date)h+='<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
     h+='<div class="small">'+i.pos[0].toFixed(5)+', '+i.pos[1].toFixed(5)+(i.acc?' (±'+Math.round(i.acc)+' m)':'')+'</div>';
     (i.photos||[]).forEach(p=>h+='<img src="'+p+'">')}
   if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="copyItem(\''+i.id+'\')">Copy</button>';
+  if(i.type==='pt')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
   return h+'<button class="no" onclick="delItem(\''+i.id+'\')">Delete</button></div>';
 }
 function delItem(id){if(!confirm('Delete this item?'))return;S.items=S.items.filter(i=>i.id!==id);map.closePopup();save();redraw()}
@@ -240,6 +243,36 @@ function detailsSheet(id){const it=S.items.find(i=>i.id===id);map.closePopup();o
 function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;it.note=$('#dt').value.trim();save();closeSheet();redraw()}
 function copyItem(id){const it=S.items.find(i=>i.id===id);S.items.push({...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),t:Date.now()});save();map.closePopup();redraw()}
 
+/* soil sample points: crosshair or GPS, repeat quickly */
+let pin=false;
+function endPin(){pin=false;$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
+$('#bPt').onclick=()=>{
+  let l=S.layers.find(x=>x.name==='Soil samples');
+  if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true};S.layers.push(l);save()}
+  l.visible=true;if(!S.ptLayer)S.ptLayer=l.id;redraw();
+  pin=true;$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#xh').classList.remove('hide');if(!watching)startGps();
+};
+$('#pCancel').onclick=endPin;
+$('#pDrop').onclick=()=>{const c=map.getCenter();ptSheet([c.lat,c.lng],null)};
+$('#pGps').onclick=()=>{const f=()=>ptSheet([gps.lat,gps.lng],gps.acc);if(gps)f();else if(watching)alert('Still waiting for a GPS fix. Try again in a moment.');else startGps(f)};
+const nextName=n=>{const m=n.match(/^(.*?)(\d+)$/);return m?m[1]+(+m[2]+1):n};
+function ptSheet(pos,acc){
+  $('#pinbar').classList.add('hide');
+  const sel=S.layers.some(l=>l.id===S.ptLayer)?S.ptLayer:S.active;
+  open('<h2>Sample point</h2><div class="small">'+pos[0].toFixed(5)+', '+pos[1].toFixed(5)+(acc?' (GPS ±'+Math.round(acc)+' m)':' (crosshair)')+'</div>'+
+  '<label>Layer</label><select id="tl">'+layerOpts(sel)+'</select>'+
+  '<label>Name / sample ID</label><input type="text" id="tn" value="'+esc(nextName(S.lastPt||''))+'" placeholder="e.g. 220S-1">'+
+  '<label>Depth</label><select id="td"><option value="">Not recorded</option><option>0–6 in</option><option>6–12 in</option><option>12–24 in</option><option>0–12 in</option><option>0–24 in</option></select>'+
+  '<label>Date</label><input type="date" id="tdt" value="'+today()+'">'+
+  '<label>Notes</label><textarea id="tt" rows="2"></textarea>'+
+  '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="savePt('+pos[0]+','+pos[1]+','+(acc||0)+')">Save point</button></div>');
+}
+function savePt(a,b,acc){
+  S.ptLayer=$('#tl').value;S.lastPt=$('#tn').value.trim();
+  S.items.push({id:uid(),type:'pt',layer:S.ptLayer,name:S.lastPt||'Point',pos:[a,b],acc:acc||null,depth:$('#td').value,date:$('#tdt').value,note:$('#tt').value.trim(),photos:[],t:Date.now()});
+  save();closeSheet();redraw();
+}
+
 /* photo + note */
 const STAGES='<optgroup label="Cereals"><option>Emerged</option><option>1–2 leaf</option><option>3–4 leaf</option><option>5+ leaf / tillering</option><option>Stem elongation</option><option>Flag leaf</option><option>Boot</option><option>Heading</option><option>Flowering</option><option>Soft dough</option><option>Hard dough</option><option>Ripe</option></optgroup>'+
 '<optgroup label="Canola"><option>Cotyledon</option><option>2–4 leaf</option><option>5–6 leaf</option><option>Rosette</option><option>Bolting</option><option>Flowering</option><option>Podding</option><option>Seed fill</option><option>Ripe</option></optgroup><optgroup label="Other"><option>Other (see note)</option></optgroup>';
@@ -268,7 +301,7 @@ async function saveObs(){
 function exportData(){
   const fc={type:'FeatureCollection',features:S.items.map(i=>{const l=S.layers.find(x=>x.id===i.layer)||{};
     const g=i.type==='poly'?{type:'Polygon',coordinates:[i.pts.concat([i.pts[0]]).map(p=>[p[1],p[0]])]}:{type:'Point',coordinates:[i.pos[1],i.pos[0]]};
-    return {type:'Feature',geometry:g,properties:{layer:l.name,color:l.color,name:i.name,date:i.date,acres:i.type==='poly'?+(area(i.pts)/4046.856).toFixed(2):undefined,crop:i.crop,stage:i.stage,note:i.note,time:new Date(i.t).toISOString(),photos:i.photos}}})};
+    return {type:'Feature',geometry:g,properties:{layer:l.name,color:l.color,name:i.name,date:i.date,depth:i.depth,acres:i.type==='poly'?+(area(i.pts)/4046.856).toFixed(2):undefined,crop:i.crop,stage:i.stage,note:i.note,time:new Date(i.t).toISOString(),photos:i.photos}}})};
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(fc)],{type:'application/geo+json'}));a.download='scouting-'+new Date().toISOString().slice(0,10)+'.geojson';a.click();
 }
 
