@@ -272,7 +272,11 @@ function exportData(){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(fc)],{type:'application/geo+json'}));a.download='scouting-'+new Date().toISOString().slice(0,10)+'.geojson';a.click();
 }
 
-load().then(d=>{if(d)S=d;redraw()});
+function zoomAll(){
+  const ll=[];S.items.forEach(i=>{(i.type==='poly'?i.pts:[i.pos]).forEach(q=>ll.push(q))});
+  if(ll.length)map.fitBounds(L.latLngBounds(ll),{padding:[40,40],maxZoom:17});
+}
+load().then(d=>{if(d)S=d;redraw();zoomAll()});
 </script>
 </body>
 </html>
