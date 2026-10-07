@@ -135,7 +135,7 @@ function layersSheet(){
   '<input type="radio" name="act" '+(S.active===l.id?'checked':'')+' onchange="S.active=\''+l.id+'\';save()">'+
   '<button class="no" onclick="delLayer(\''+l.id+'\')">✕</button></div>').join('')+
   '<h2 style="margin-top:18px">Add layer</h2><div class="row"><input type="color" id="nc" value="#e5484d"><input type="text" id="nn" placeholder="e.g. Wild oat patch"><button class="go" onclick="addLayer()">Add</button></div>'+
-  '<div class="btns"><button onclick="exportData()">Export</button><button class="go" onclick="closeSheet()">Done</button></div>');
+  '<div class="btns"><button onclick="backupData()">Back up</button><button onclick="restoreData()">Restore</button><button class="go" onclick="closeSheet()">Done</button></div>');
 }
 function lyr(id,k,v){const l=S.layers.find(x=>x.id===id);l[k]=v;save();redraw()}
 function addLayer(){const n=$('#nn').value.trim();if(!n)return;const l={id:uid(),name:n,color:$('#nc').value,visible:true};S.layers.push(l);S.active=l.id;save();layersSheet();redraw()}
@@ -242,6 +242,21 @@ $('#eDone').onclick=()=>{edit.it.pts=edit.pts;save();endEdit()};
 function detailsSheet(id){const it=S.items.find(i=>i.id===id);map.closePopup();open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'"><label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'"><label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea><div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
 function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;it.note=$('#dt').value.trim();save();closeSheet();redraw()}
 function copyItem(id){const it=S.items.find(i=>i.id===id);S.items.push({...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),t:Date.now()});save();map.closePopup();redraw()}
+
+/* full backup and restore (fields, layers, points, photos) */
+function backupData(){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));
+  a.download='fairview-scouting-backup-'+today()+'.json';a.click();
+}
+function restoreData(){
+  const i=document.createElement('input');i.type='file';i.accept='.json,application/json';
+  i.onchange=async()=>{const f=i.files[0];if(!f)return;
+    try{const d=JSON.parse(await f.text());if(!d.layers||!d.items)throw 0;
+      if(!confirm('Replace everything in the app with this backup ('+d.items.length+' items)?'))return;
+      S=d;await save();closeSheet();redraw();zoomAll();
+    }catch(e){alert('That file is not a scouting backup.')}};
+  i.click();
+}
 
 /* soil sample points: crosshair or GPS, repeat quickly */
 let pin=false;
