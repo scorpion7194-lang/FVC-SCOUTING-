@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Fairview Scouting</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2d6a3e">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 :root{--ink:#1c2b1f;--paper:#f6f4ec;--acc:#2d6a3e;--line:#cfcab8;--warn:#b3402a}
@@ -34,6 +37,11 @@ button.no{color:var(--warn);border-color:var(--warn)}
 .small{font-size:13px;color:#555}
 #fab{position:absolute;right:12px;top:calc(80px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;padding:0}
 #yr{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top,0px));z-index:1000;font:700 16px system-ui;padding:10px 12px;border:2px solid var(--ink);border-radius:8px;background:#fff;color:var(--ink)}
+#legend{position:absolute;left:12px;top:calc(68px + env(safe-area-inset-top,0px));z-index:900;background:rgba(255,255,255,.9);border-radius:8px;font:600 13px system-ui}
+#legend:empty{display:none}
+#legend div{padding:4px 10px;display:flex;align-items:center;gap:6px}
+#legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
+.lbl{text-align:center}
 #drawbar{flex-direction:column}
 #drawbar .r{display:flex;gap:6px}
 #drawbar button{font-size:14px;padding:0 4px}
@@ -63,6 +71,7 @@ button.on{background:var(--ink)!important;color:#fff!important}
 
 <button id="fab" aria-label="My location"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="#1c2b1f"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
 <select id="yr" aria-label="Year"></select>
+<div id="legend"></div>
 <div id="xh" class="hide"></div>
 <div class="bar hide" id="drawbar">
   <div id="dinfo"></div>
@@ -131,7 +140,7 @@ const layerOpts=sel=>S.layers.map(l=>'<option value="'+l.id+'"'+(l.id===sel?' se
 
 /* layers */
 function layersSheet(){
-  open('<h2>Layers</h2><div class="small">Tap the circle to choose the layer you are drawing into.</div>'+
+  open('<h2>Layers</h2><div class="small">Tap the circle to choose the layer you are drawing into.</div>'+'<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:8px 0"><input type="checkbox" style="width:22px;height:22px" '+(S.byCrop!==false?'checked':'')+' onchange="S.byCrop=this.checked;save();redraw()">Colour fields by crop</label>'+
   S.layers.map(l=>'<div class="row"><input type="checkbox" '+(l.visible?'checked':'')+' onchange="lyr(\''+l.id+'\',\'visible\',this.checked)">'+
   '<input type="color" value="'+l.color+'" onchange="lyr(\''+l.id+'\',\'color\',this.value)">'+
   '<input type="text" value="'+esc(l.name)+'" onchange="lyr(\''+l.id+'\',\'name\',this.value)">'+
@@ -155,22 +164,28 @@ function refreshYears(){
 }
 $('#yr').onchange=()=>{YR=$('#yr').value;redraw()};
 function migrate(){S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())})}
+const CROPC={wheat:'#d64545',barley:'#43a047',canola:'#f2c94c',oats:'#fb8c00',peas:'#26a69a',silage:'#8e24aa',hay:'#1e88e5',alfalfa:'#1e88e5',fallow:'#9e9e9e',flax:'#5c6bc0',corn:'#cddc39',lentil:'#a1887f'};
+function cropColor(c){const k=c.toLowerCase();for(const n in CROPC)if(k.includes(n))return CROPC[n];let h=0;for(const ch of k)h=(h*31+ch.charCodeAt(0))%360;return 'hsl('+h+',55%,45%)'}
+const cropYear=()=>YR==='all'?String(new Date().getFullYear()):YR;
+const cropOf=(i,l)=>S.byCrop!==false&&l.always&&i.crops?i.crops[cropYear()]:'';
+const cropsLine=i=>i.crops&&Object.keys(i.crops).length?'<div>Crops: '+Object.keys(i.crops).sort().reverse().map(y=>y+' '+esc(i.crops[y])).join(', ')+'</div>':'';
 function redraw(){
   refreshYears();
-  G.clearLayers();
+  G.clearLayers();const used={};
   S.layers.forEach(l=>{if(!l.visible)return;
     S.items.filter(i=>i.layer===l.id&&(l.always||YR==='all'||yrOf(i)===+YR)).forEach(i=>{
       if(edit&&edit.it===i)return;
       let m;
-      if(i.type==='poly'){m=L.polygon(i.pts,{color:l.color,weight:3,fillOpacity:.2,interactive:false});m.bindTooltip(esc(i.name)+' · '+(area(i.pts)/4046.856).toFixed(1)+' ac',{permanent:true,direction:'center',className:'lbl'})}
+      if(i.type==='poly'){const cr=cropOf(i,l),col=cr?cropColor(cr):l.color;if(cr)used[cr]=col;m=L.polygon(i.pts,{color:col,weight:3,fillOpacity:.25,interactive:false});m.bindTooltip(esc(i.name)+(cr?', '+esc(cr):'')+'<br>'+(area(i.pts)/4046.856).toFixed(1)+' ac',{permanent:true,direction:'center',className:'lbl'})}
       else m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})});
       m.bindPopup(()=>pop(i,l));m.addTo(G);
     });
   });
+  $('#legend').innerHTML=Object.keys(used).sort().map(c=>'<div><i style="background:'+used[c]+'"></i>'+esc(c)+'</div>').join('');
 }
 function pop(i,l){
   let h='<div class="pop"><b>'+esc(i.name||i.stage||'Note')+'</b><div class="small">'+esc(l.name)+' · '+new Date(i.t).toLocaleString()+'</div>';
-  if(i.type==='poly')h+='<div>'+fm(i.pts)+'</div>'+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
+  if(i.type==='poly')h+='<div>'+fm(i.pts)+'</div>'+cropsLine(i)+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
   else{if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.depth)h+='<div>Depth: '+esc(i.depth)+'</div>';if(i.date)h+='<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
     h+='<div class="small">'+i.pos[0].toFixed(5)+', '+i.pos[1].toFixed(5)+(i.acc?' (±'+Math.round(i.acc)+' m)':'')+'</div>';
     (i.photos||[]).forEach(p=>h+='<img src="'+p+'">')}
@@ -252,8 +267,13 @@ function eupd(){handles({pts:edit.pts,poly:edit.poly,grp:edit.hs,info:'#einfo',r
 function endEdit(){map.removeLayer(edit.poly);map.removeLayer(edit.hs);edit=null;$('#editbar').classList.add('hide');$('#main').classList.remove('hide');redraw()}
 $('#eCancel').onclick=endEdit;
 $('#eDone').onclick=()=>{edit.it.pts=edit.pts;save();endEdit()};
-function detailsSheet(id){const it=S.items.find(i=>i.id===id);map.closePopup();open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'"><label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'"><label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea><div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
-function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;it.note=$('#dt').value.trim();save();closeSheet();redraw()}
+let detYr='';
+function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);map.closePopup();detYr=cropYear();
+  const crop=(it.type==='poly'&&l.always)?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+['Wheat','Barley','Canola','Oats','Peas','Silage','Hay','Fallow','Flax','Lentils'].map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>':'';
+  open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'"><label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea><div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
+function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;it.note=$('#dt').value.trim();
+  if($('#dc')){it.crops=it.crops||{};const c=$('#dc').value.trim();if(c)it.crops[detYr]=c;else delete it.crops[detYr]}
+  save();closeSheet();redraw()}
 function copyItem(id){const it=S.items.find(i=>i.id===id);S.items.push({...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),t:Date.now()});save();map.closePopup();redraw()}
 
 /* full backup and restore (fields, layers, points, photos) */
@@ -378,6 +398,7 @@ function zoomAll(){
   if(ll.length)map.fitBounds(L.latLngBounds(ll),{padding:[40,40],maxZoom:17});
 }
 load().then(d=>{if(d)S=d;migrate();redraw();zoomAll()});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
