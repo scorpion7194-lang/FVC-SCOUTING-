@@ -33,6 +33,7 @@ button.no{color:var(--warn);border-color:var(--warn)}
 .pop img{max-width:200px;display:block;margin:6px 0;border-radius:6px}
 .small{font-size:13px;color:#555}
 #fab{position:absolute;right:12px;top:calc(80px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;padding:0}
+#yr{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top,0px));z-index:1000;font:700 16px system-ui;padding:10px 12px;border:2px solid var(--ink);border-radius:8px;background:#fff;color:var(--ink)}
 #drawbar{flex-direction:column}
 #drawbar .r{display:flex;gap:6px}
 #drawbar button{font-size:14px;padding:0 4px}
@@ -46,6 +47,7 @@ button.on{background:var(--ink)!important;color:#fff!important}
 #xh:after{top:50%;left:-14px;right:-14px;height:2px;margin-top:-1px}
 .vh{width:28px;height:28px;border-radius:50%;background:#fff;border:4px solid #000;box-sizing:border-box}
 .mh{width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #000;box-sizing:border-box;opacity:.85}
+.pop button.hit{display:block;width:100%;text-align:left;margin:6px 0 0;padding:6px 10px}
 .pop button{min-height:40px;border:2px solid var(--ink);background:#fff;border-radius:8px;padding:0 10px;margin:6px 4px 0 0;font-weight:600}
 </style>
 </head>
@@ -60,6 +62,7 @@ button.on{background:var(--ink)!important;color:#fff!important}
 </div>
 
 <button id="fab" aria-label="My location"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="#1c2b1f"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
+<select id="yr" aria-label="Year"></select>
 <div id="xh" class="hide"></div>
 <div class="bar hide" id="drawbar">
   <div id="dinfo"></div>
@@ -133,23 +136,33 @@ function layersSheet(){
   '<input type="color" value="'+l.color+'" onchange="lyr(\''+l.id+'\',\'color\',this.value)">'+
   '<input type="text" value="'+esc(l.name)+'" onchange="lyr(\''+l.id+'\',\'name\',this.value)">'+
   '<input type="radio" name="act" '+(S.active===l.id?'checked':'')+' onchange="S.active=\''+l.id+'\';save()">'+
-  '<button class="no" onclick="delLayer(\''+l.id+'\')">✕</button></div>').join('')+
+  '<button class="no" onclick="delLayer(\''+l.id+'\')">✕</button></div><label style="display:flex;gap:8px;align-items:center;font-weight:400;font-size:14px;margin:0 0 8px 40px"><input type="checkbox" style="width:20px;height:20px" '+(l.always?'checked':'')+' onchange="lyr(\''+l.id+'\',\'always\',this.checked)">Show in every year</label>').join('')+
   '<h2 style="margin-top:18px">Add layer</h2><div class="row"><input type="color" id="nc" value="#e5484d"><input type="text" id="nn" placeholder="e.g. Wild oat patch"><button class="go" onclick="addLayer()">Add</button></div>'+
   '<div class="btns"><button onclick="backupData()">Back up</button><button onclick="restoreData()">Restore</button><button class="go" onclick="closeSheet()">Done</button></div>');
 }
 function lyr(id,k,v){const l=S.layers.find(x=>x.id===id);l[k]=v;save();redraw()}
-function addLayer(){const n=$('#nn').value.trim();if(!n)return;const l={id:uid(),name:n,color:$('#nc').value,visible:true};S.layers.push(l);S.active=l.id;save();layersSheet();redraw()}
+function addLayer(){const n=$('#nn').value.trim();if(!n)return;const l={id:uid(),name:n,color:$('#nc').value,visible:true,always:false};S.layers.push(l);S.active=l.id;save();layersSheet();redraw()}
 function delLayer(id){const n=S.items.filter(i=>i.layer===id).length;if(!confirm('Delete this layer'+(n?' and its '+n+' items':'')+'?'))return;S.layers=S.layers.filter(l=>l.id!==id);S.items=S.items.filter(i=>i.layer!==id);if(!S.layers.find(l=>l.id===S.active))S.active=(S.layers[0]||{}).id;save();layersSheet();redraw()}
 $('#bLayers').onclick=layersSheet;
 
 /* render */
+let YR=String(new Date().getFullYear());
+const yrOf=i=>i.date?+i.date.slice(0,4):new Date(i.t).getFullYear();
+function refreshYears(){
+  const ys=new Set([new Date().getFullYear()]);S.items.forEach(i=>ys.add(yrOf(i)));if(YR!=='all')ys.add(+YR);
+  $('#yr').innerHTML=[...ys].sort((x,y)=>y-x).map(y=>'<option value="'+y+'">'+y+'</option>').join('')+'<option value="all">All years</option>';
+  $('#yr').value=YR;
+}
+$('#yr').onchange=()=>{YR=$('#yr').value;redraw()};
+function migrate(){S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())})}
 function redraw(){
+  refreshYears();
   G.clearLayers();
   S.layers.forEach(l=>{if(!l.visible)return;
-    S.items.filter(i=>i.layer===l.id).forEach(i=>{
+    S.items.filter(i=>i.layer===l.id&&(l.always||YR==='all'||yrOf(i)===+YR)).forEach(i=>{
       if(edit&&edit.it===i)return;
       let m;
-      if(i.type==='poly'){m=L.polygon(i.pts,{color:l.color,weight:3,fillOpacity:.2});m.bindTooltip(esc(i.name)+' · '+(area(i.pts)/4046.856).toFixed(1)+' ac',{permanent:true,direction:'center',className:'lbl'})}
+      if(i.type==='poly'){m=L.polygon(i.pts,{color:l.color,weight:3,fillOpacity:.2,interactive:false});m.bindTooltip(esc(i.name)+' · '+(area(i.pts)/4046.856).toFixed(1)+' ac',{permanent:true,direction:'center',className:'lbl'})}
       else m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})});
       m.bindPopup(()=>pop(i,l));m.addTo(G);
     });
@@ -161,7 +174,7 @@ function pop(i,l){
   else{if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.depth)h+='<div>Depth: '+esc(i.depth)+'</div>';if(i.date)h+='<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
     h+='<div class="small">'+i.pos[0].toFixed(5)+', '+i.pos[1].toFixed(5)+(i.acc?' (±'+Math.round(i.acc)+' m)':'')+'</div>';
     (i.photos||[]).forEach(p=>h+='<img src="'+p+'">')}
-  if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="copyItem(\''+i.id+'\')">Copy</button>';
+  if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="copyItem(\''+i.id+'\')">Copy</button><button onclick="historySheet(\''+i.id+'\')">History</button>';
   if(i.type==='pt')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
   return h+'<button class="no" onclick="delItem(\''+i.id+'\')">Delete</button></div>';
 }
@@ -253,7 +266,7 @@ function restoreData(){
   i.onchange=async()=>{const f=i.files[0];if(!f)return;
     try{const d=JSON.parse(await f.text());if(!d.layers||!d.items)throw 0;
       if(!confirm('Replace everything in the app with this backup ('+d.items.length+' items)?'))return;
-      S=d;await save();closeSheet();redraw();zoomAll();
+      S=d;migrate();await save();closeSheet();redraw();zoomAll();
     }catch(e){alert('That file is not a scouting backup.')}};
   i.click();
 }
@@ -263,7 +276,7 @@ let pin=false;
 function endPin(){pin=false;$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
 $('#bPt').onclick=()=>{
   let l=S.layers.find(x=>x.name==='Soil samples');
-  if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true};S.layers.push(l);save()}
+  if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true,always:true};S.layers.push(l);save()}
   l.visible=true;if(!S.ptLayer)S.ptLayer=l.id;redraw();
   pin=true;$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#xh').classList.remove('hide');if(!watching)startGps();
 };
@@ -288,6 +301,46 @@ function savePt(a,b,acc){
   save();closeSheet();redraw();
 }
 
+/* tap overlapping areas: list them all */
+function ptIn(p,q){let c=false;for(let i=0,j=p.length-1;i<p.length;j=i++){if((p[i][0]>q[0])!==(p[j][0]>q[0])&&q[1]<(p[j][1]-p[i][1])*(q[0]-p[i][0])/(p[j][0]-p[i][0])+p[i][1])c=!c}return c}
+let lastHit=null;
+function hitsAt(ll){
+  const q=[ll.lat,ll.lng],out=[];
+  S.layers.forEach(l=>{if(l.visible)S.items.forEach(i=>{if(i.layer===l.id&&i.type==='poly'&&(l.always||YR==='all'||yrOf(i)===+YR)&&ptIn(i.pts,q))out.push([i,l])})});
+  return out;
+}
+map.on('click',e=>{
+  if(draw||edit||pin)return;
+  const h=hitsAt(e.latlng);lastHit=e.latlng;if(!h.length)return;
+  const c=h.length===1?pop(h[0][0],h[0][1]):'<div class="pop"><b>'+h.length+' areas here</b>'+h.map(([i,l])=>'<button class="hit" onclick="showItem(\''+i.id+'\')"><span style="color:'+l.color+'">■</span> '+esc(i.name)+'<br><small>'+esc(l.name)+(i.date?', '+i.date:'')+', '+(area(i.pts)/4046.856).toFixed(1)+' ac</small></button>').join('')+'</div>';
+  L.popup().setLatLng(e.latlng).setContent(c).openOn(map);
+});
+function showItem(id){const i=S.items.find(x=>x.id===id),l=S.layers.find(x=>x.id===i.layer);L.popup().setLatLng(lastHit).setContent(pop(i,l)).openOn(map)}
+
+/* field history: scouting entries inside a field, grouped by year, compare any years */
+let hist=null;
+const dkey=i=>i.date||new Date(i.t).toISOString().slice(0,10);
+function historySheet(id){map.closePopup();hist={id,off:new Set()};renderHist()}
+function toggleHist(y){hist.off.has(y)?hist.off.delete(y):hist.off.add(y);renderHist()}
+function renderHist(){
+  const f=S.items.find(i=>i.id===hist.id);
+  const obs=S.items.filter(i=>i.type==='obs'&&ptIn(f.pts,i.pos)).sort((a,b)=>dkey(a).localeCompare(dkey(b)));
+  const by={};obs.forEach(i=>{(by[dkey(i).slice(0,4)]=by[dkey(i).slice(0,4)]||[]).push(i)});
+  const ys=Object.keys(by).sort().reverse();
+  const sd=k=>new Date(k+'T12:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  let h='<h2>'+esc(f.name)+': history</h2>';
+  if(!ys.length)h+='<div class="small">No scouting entries inside this field yet. Entries made with Photo + note count when their location is inside the field.</div>';
+  else{
+    h+='<div class="small">Tick the years to compare.</div><div class="row" style="flex-wrap:wrap">'+ys.map(y=>'<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:600"><input type="checkbox" style="width:22px;height:22px" '+(hist.off.has(y)?'':'checked')+' onchange="toggleHist(\''+y+'\')">'+y+'</label>').join('')+'</div>';
+    ys.filter(y=>!hist.off.has(y)).forEach(y=>{
+      const st=by[y].filter(i=>i.stage).map(i=>sd(dkey(i))+' '+esc(i.stage)).join(' → ');
+      h+='<h2 style="margin-top:16px">'+y+'</h2>'+(st?'<div class="small">'+st+'</div>':'');
+      by[y].forEach(i=>{h+='<div style="border-top:1px solid var(--line);padding:8px 0"><b>'+sd(dkey(i))+'</b> '+esc([i.crop,i.stage].filter(Boolean).join(', '))+(i.note?'<div>'+esc(i.note)+'</div>':'')+(i.photos||[]).map(p=>'<img src="'+p+'" style="width:96px;border-radius:6px;margin:4px 4px 0 0">').join('')+'</div>'});
+    });
+  }
+  open(h+'<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
+}
+
 /* photo + note */
 const STAGES='<optgroup label="Cereals"><option>Emerged</option><option>1–2 leaf</option><option>3–4 leaf</option><option>5+ leaf / tillering</option><option>Stem elongation</option><option>Flag leaf</option><option>Boot</option><option>Heading</option><option>Flowering</option><option>Soft dough</option><option>Hard dough</option><option>Ripe</option></optgroup>'+
 '<optgroup label="Canola"><option>Cotyledon</option><option>2–4 leaf</option><option>5–6 leaf</option><option>Rosette</option><option>Bolting</option><option>Flowering</option><option>Podding</option><option>Seed fill</option><option>Ripe</option></optgroup><optgroup label="Other"><option>Other (see note)</option></optgroup>';
@@ -297,7 +350,7 @@ function obsSheet(){
   const pos=gps?'GPS fix ±'+Math.round(gps.acc)+' m':'No GPS fix yet, will use the map centre';
   open('<h2>Photo + note</h2><div class="small" id="gp">'+pos+'</div>'+
   '<label>Layer</label><select id="ol">'+layerOpts(S.obsLayer)+'</select>'+
-  '<label>Crop</label><input type="text" id="oc" placeholder="e.g. Wheat, canola">'+
+  '<label>Crop</label><input type="text" id="oc" placeholder="e.g. Wheat, canola">'+'<label>Date</label><input type="date" id="od" value="'+today()+'">'+
   '<label>Growth stage</label><select id="os"><option value="">Not recorded</option>'+STAGES+'</select>'+
   '<label>Notes</label><textarea id="on" rows="3" placeholder="Weeds, disease, insects, stand, moisture"></textarea>'+
   '<label>Photos</label><input type="file" id="of" accept="image/*" capture="environment" multiple>'+
@@ -308,7 +361,7 @@ async function saveObs(){
   const photos=[];for(const f of $('#of').files){const d=await shrink(f);if(d)photos.push(d)}
   const c=map.getCenter(),pos=gps?[gps.lat,gps.lng]:[c.lat,c.lng];
   S.obsLayer=$('#ol').value;
-  S.items.push({id:uid(),type:'obs',layer:S.obsLayer,pos,acc:gps?gps.acc:null,crop:$('#oc').value.trim(),stage:$('#os').value,note:$('#on').value.trim(),photos,t:Date.now()});
+  S.items.push({id:uid(),type:'obs',layer:S.obsLayer,pos,acc:gps?gps.acc:null,crop:$('#oc').value.trim(),date:$('#od').value,stage:$('#os').value,note:$('#on').value.trim(),photos,t:Date.now()});
   save();closeSheet();redraw();
 }
 
@@ -324,7 +377,7 @@ function zoomAll(){
   const ll=[];S.items.forEach(i=>{(i.type==='poly'?i.pts:[i.pos]).forEach(q=>ll.push(q))});
   if(ll.length)map.fitBounds(L.latLngBounds(ll),{padding:[40,40],maxZoom:17});
 }
-load().then(d=>{if(d)S=d;redraw();zoomAll()});
+load().then(d=>{if(d)S=d;migrate();redraw();zoomAll()});
 </script>
 </body>
 </html>
