@@ -42,6 +42,11 @@ button.no{color:var(--warn);border-color:var(--warn)}
 #legend div{padding:4px 10px;display:flex;align-items:center;gap:6px}
 #legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
 .lbl{text-align:center}
+#fab2{position:absolute;right:12px;top:calc(144px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;padding:0}
+.bub{width:38px;height:38px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.35);color:#fff;font:700 15px/32px system-ui;text-align:center;text-shadow:0 0 3px #000}
+.lbl2{font-size:12px;background:rgba(150,30,30,.8)}
+.orow{border-top:1px solid var(--line);padding:10px 0}
+.orow img{width:72px;height:72px;object-fit:cover;border-radius:6px;margin:6px 6px 0 0}
 #drawbar{flex-direction:column}
 #drawbar .r{display:flex;gap:6px}
 #drawbar button{font-size:14px;padding:0 4px}
@@ -72,6 +77,7 @@ button.on{background:var(--ink)!important;color:#fff!important}
 <button id="fab" aria-label="My location"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="#1c2b1f"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
 <select id="yr" aria-label="Year"></select>
 <div id="legend"></div>
+<button id="fab2" aria-label="Observations list"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" fill="#1c2b1f"/><circle cx="4" cy="12" r="1" fill="#1c2b1f"/><circle cx="4" cy="18" r="1" fill="#1c2b1f"/></svg></button>
 <div id="xh" class="hide"></div>
 <div class="bar hide" id="drawbar">
   <div id="dinfo"></div>
@@ -111,6 +117,16 @@ function area(p){if(p.length<3)return 0;const R=6378137,r=Math.PI/180;let s=0;fo
 function dist(a,b){const r=Math.PI/180,R=6371008,dl=(b[0]-a[0])*r,dg=(b[1]-a[1])*r,x=Math.sin(dl/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 const per=p=>{let t=0;for(let i=0;i<p.length;i++)t+=dist(p[i],p[(i+1)%p.length]);return t};
 const fmtLen=m=>{const f=m*3.28084;return f>=1320?(f/5280).toFixed(2)+' mi':Math.round(f)+' ft'};
+const holesOf=i=>i.holes||[];
+const netArea=i=>area(i.pts)-holesOf(i).reduce((a,h)=>a+area(h.pts),0);
+const members=i=>i.group?S.items.filter(x=>x.type==='poly'&&x.group===i.group):[i];
+const acOf=a=>(a/4046.856).toFixed(1);
+function polyInfo(i){
+  let h='<div>'+fmt(netArea(i))+', perimeter '+fmtLen(per(i.pts))+(holesOf(i).length?' (after cutouts)':'')+'</div>';
+  if(i.group){const mm=members(i);h+='<div>Farmed as <b>'+esc(i.group)+'</b>: '+mm.length+' part'+(mm.length>1?'s':'')+', '+acOf(mm.reduce((a,x)=>a+netArea(x),0))+' ac total</div>'}
+  holesOf(i).forEach((hh,k)=>{h+='<div class="small">Cutout '+esc(hh.name||'')+', '+(area(hh.pts)/4046.856).toFixed(2)+' ac <button onclick="delHole(\''+i.id+'\','+k+')">Remove</button></div>'});
+  return h;
+}
 const fm=p=>fmt(area(p))+', perimeter '+fmtLen(per(p));
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
 const fmt=m=>(m/4046.856).toFixed(2)+' ac ('+(m/10000).toFixed(2)+' ha)';
@@ -179,25 +195,40 @@ const cropOf=(i,l)=>S.byCrop!==false&&l.always&&i.crops?i.crops[cropYear()]:'';
 const cropsLine=i=>i.crops&&Object.keys(i.crops).length?'<div>Crops: '+Object.keys(i.crops).sort().reverse().map(y=>y+' '+esc(i.crops[y])).join(', ')+'</div>':'';
 function redraw(){
   refreshYears();
-  G.clearLayers();const used={};
-  S.layers.forEach(l=>{if(!l.visible)return;
-    S.items.filter(i=>i.layer===l.id&&(l.always||YR==='all'||yrOf(i)===+YR)).forEach(i=>{
-      if(edit&&edit.it===i)return;
-      let m;
-      if(i.type==='poly'){const cr=cropOf(i,l),col=cr?cropColor(cr):l.color;if(cr)used[cr]=col;m=L.polygon(i.pts,{color:col,weight:3,fillOpacity:.25,interactive:false});m.bindTooltip(esc(i.name)+(cr?', '+esc(cr):'')+'<br>'+(area(i.pts)/4046.856).toFixed(1)+' ac',{permanent:true,direction:'center',className:'lbl'})}
-      else m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})});
-      m.bindPopup(()=>pop(i,l));m.addTo(G);
-    });
+  G.clearLayers();const used={},pins=[],best={};
+  const vis=[];
+  S.layers.forEach(l=>{if(!l.visible)return;S.items.filter(i=>i.layer===l.id&&(l.always||YR==='all'||yrOf(i)===+YR)).forEach(i=>vis.push([i,l]))});
+  vis.forEach(([i])=>{if(i.type==='poly'&&i.group){const a=netArea(i);if(!best[i.group]||a>best[i.group].a)best[i.group]={a,i}}});
+  vis.forEach(([i,l])=>{
+    if(edit&&edit.it===i)return;
+    if(i.type!=='poly'){pins.push({i,l});return}
+    const cr=cropOf(i,l),col=cr?cropColor(cr):l.color;if(cr)used[cr]=col;
+    const m=L.polygon([i.pts].concat(holesOf(i).map(h=>h.pts)),{color:col,weight:3,fillOpacity:.25,interactive:false});
+    let txt=null;
+    if(i.group){if(best[i.group].i===i){const mm=members(i);txt=esc(i.group)+(cr?', '+esc(cr):'')+'<br>'+acOf(mm.reduce((a,x)=>a+netArea(x),0))+' ac'+(mm.length>1?', '+mm.length+' parts':'')}}
+    else txt=esc(i.name)+(cr?', '+esc(cr):'')+'<br>'+acOf(netArea(i))+' ac';
+    if(txt)m.bindTooltip(txt,{permanent:true,direction:'center',className:'lbl'});
+    m.addTo(G);
+    holesOf(i).forEach(h=>{if(h.name)L.polygon(h.pts,{stroke:false,fill:false,interactive:false}).bindTooltip(esc(h.name),{permanent:true,direction:'center',className:'lbl lbl2'}).addTo(G)});
+  });
+  /* pins: nearby ones in the same layer collapse into a numbered bubble */
+  const z=map.getZoom(),cells={};
+  pins.forEach(p=>{const q=map.project(p.i.pos,z),k=p.l.id+':'+Math.floor(q.x/48)+':'+Math.floor(q.y/48);(cells[k]=cells[k]||[]).push(p)});
+  Object.values(cells).forEach(c=>{
+    if(c.length===1||z>=19){c.forEach(({i,l})=>{const m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})});m.bindPopup(()=>pop(i,l));m.addTo(G)});return}
+    const lat=c.reduce((a,p)=>a+p.i.pos[0],0)/c.length,lng=c.reduce((a,p)=>a+p.i.pos[1],0)/c.length;
+    const mk=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="bub" style="background:'+c[0].l.color+'">'+c.length+'</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(G);
+    mk.on('click',()=>map.fitBounds(L.latLngBounds(c.map(p=>p.i.pos)),{padding:[70,70],maxZoom:19}));
   });
   $('#legend').innerHTML=Object.keys(used).sort().map(c=>'<div><i style="background:'+used[c]+'"></i>'+esc(c)+'</div>').join('');
 }
 function pop(i,l){
   let h='<div class="pop"><b>'+esc(i.name||i.stage||'Note')+'</b><div class="small">'+esc(l.name)+' · '+new Date(i.t).toLocaleString()+'</div>';
-  if(i.type==='poly')h+='<div>'+fm(i.pts)+'</div>'+cropsLine(i)+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
+  if(i.type==='poly')h+=polyInfo(i)+cropsLine(i)+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
   else{if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.depth)h+='<div>Depth: '+esc(i.depth)+'</div>';if(i.date)h+='<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
     h+='<div class="small">'+i.pos[0].toFixed(5)+', '+i.pos[1].toFixed(5)+(i.acc?' (±'+Math.round(i.acc)+' m)':'')+'</div>';
     (i.photos||[]).forEach(p=>h+='<img src="'+p+'">')}
-  if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="copyItem(\''+i.id+'\')">Copy</button><button onclick="historySheet(\''+i.id+'\')">History</button>';
+  if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="startCutout(\''+i.id+'\')">Cut out</button><button onclick="copyItem(\''+i.id+'\')">Copy</button><button onclick="historySheet(\''+i.id+'\')">History</button>';
   if(i.type==='pt')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
   return h+'<button class="no" onclick="delItem(\''+i.id+'\')">Delete</button></div>';
 }
@@ -230,7 +261,7 @@ function handles(o){
   }
   show();
 }
-map.on('zoomend',()=>{if(draw)upd();else if(edit)eupd()});
+map.on('zoomend',()=>{if(draw)upd();else if(edit)eupd();redraw()});
 map.on('popupopen',()=>{if(draw||edit)map.closePopup()});
 const topInfo=p=>p.length<3?'Tap corners ('+p.length+')':'<span>Area <b>'+(area(p)/4046.856).toFixed(2)+' ac</b></span><span>Perimeter <b>'+fmtLen(per(p))+'</b></span>';
 function upd(){handles({pts:draw.pts,poly:draw.poly,grp:draw.mk,info:'#dinfo',redo:upd})}
@@ -251,12 +282,26 @@ function endDraw(){resetDrawUI();map.removeLayer(draw.poly);map.removeLayer(draw
 $('#dCancel').onclick=endDraw;
 $('#dDone').onclick=()=>{
   if(draw.pts.length<3){alert('Add at least 3 corners.');return}
+  if(draw.holeFor){const it=S.items.find(x=>x.id===draw.holeFor);$('#drawbar').classList.add('hide');
+    open('<h2>Cutout: '+(area(draw.pts)/4046.856).toFixed(2)+' ac</h2><div class="small">This area is taken out of '+esc(it.name)+', so its acres drop by this much.</div><label>What is it?</label><input type="text" id="hn" list="holel" placeholder="e.g. Oil site, power line"><datalist id="holel"><option>Oil site</option><option>Power line</option><option>Slough</option><option>Rock pile</option><option>Pole</option></datalist><div class="btns"><button onclick="measureOnly()">Discard</button><button class="go" onclick="saveHole()">Save cutout</button></div>');return}
   const l=S.layers.find(x=>x.id===S.active);
   $('#drawbar').classList.add('hide');
   open('<h2>'+fm(draw.pts)+'</h2><label>Name</label><input type="text" id="pn" placeholder="e.g. Home North, wild oat patch 1"><label>Date</label><input type="date" id="pd" value="'+today()+'"><label>Notes</label><textarea id="pnote" rows="3" placeholder="e.g. Chicken manure, rate, weather"></textarea><div class="small" style="margin-top:8px">Saves into layer: <b>'+esc(l?l.name:'(none)')+'</b></div>'+
   '<div class="btns"><button onclick="measureOnly()">Measure only</button><button class="go" onclick="savePoly()">Save</button></div>');
   sheet.dataset.draw='1';
 };
+function startCutout(id){
+  map.closePopup();
+  draw={pts:[],holeFor:id,poly:L.polygon([],{color:'#e5484d',weight:3,dashArray:'6 6',fillOpacity:.3}).addTo(map),mk:L.layerGroup().addTo(map)};
+  $('#main').classList.add('hide');$('#drawbar').classList.remove('hide');upd();
+}
+function saveHole(){
+  const it=S.items.find(x=>x.id===draw.holeFor);
+  if(draw.pts.some(p=>!ptIn(it.pts,p))&&!confirm('Some corners are outside the field. Save the cutout anyway?'))return;
+  it.holes=it.holes||[];it.holes.push({name:$('#hn').value.trim(),pts:draw.pts.slice()});
+  save();closeSheet();endDraw();redraw();
+}
+function delHole(id,k){if(!confirm('Remove this cutout?'))return;const it=S.items.find(x=>x.id===id);it.holes.splice(k,1);if(!it.holes.length)delete it.holes;save();map.closePopup();redraw()}
 function measureOnly(){closeSheet();endDraw()}
 function savePoly(){
   S.items.push({id:uid(),type:'poly',layer:S.active,name:$('#pn').value.trim()||'Unnamed',date:$('#pd').value,note:$('#pnote').value.trim(),pts:draw.pts.slice(),t:Date.now()});
@@ -277,12 +322,19 @@ $('#eCancel').onclick=endEdit;
 $('#eDone').onclick=()=>{edit.it.pts=edit.pts;save();endEdit()};
 let detYr='';
 function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);map.closePopup();detYr=cropYear();
-  const crop=(it.type==='poly'&&l.always)?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+['Wheat','Barley','Canola','Oats','Peas','Silage','Hay','Fallow','Flax','Lentils'].map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>':'';
+  const groups=[...new Set(S.items.filter(x=>x.type==='poly'&&x.group).map(x=>x.group))];
+  const fld=it.type==='poly'&&l.always;
+  const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+
+    '<label>Group name (fields farmed as one)</label><input type="text" id="dg" list="grpl" value="'+esc(it.group||'')+'" placeholder="e.g. Kersey 640"><datalist id="grpl">'+groups.map(g=>'<option>'+esc(g)+'</option>').join('')+'</datalist><div class="small">Give separate fields the same group name and they are labelled, cropped and tracked as one field. Leave empty if it stands alone.</div>':'';
   open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'"><label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea><div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
 function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;it.note=$('#dt').value.trim();
-  if($('#dc')){it.crops=it.crops||{};const c=$('#dc').value.trim();if(c)it.crops[detYr]=c;else delete it.crops[detYr]}
+  if($('#dg')){const g=$('#dg').value.trim();if(g)it.group=g;else delete it.group}
+  if($('#dc')){it.crops=it.crops||{};const prev=it.crops[detYr],c=$('#dc').value.trim(),mem=it.group?S.items.filter(x=>x.type==='poly'&&x.group===it.group):[it];
+    if(c)mem.forEach(x=>{x.crops=x.crops||{};x.crops[detYr]=c});
+    else if(prev)mem.forEach(x=>{if(x.crops)delete x.crops[detYr]});
+    else{const o=mem.find(x=>x!==it&&x.crops&&x.crops[detYr]);if(o)it.crops[detYr]=o.crops[detYr]}}
   save();closeSheet();redraw()}
-function copyItem(id){const it=S.items.find(i=>i.id===id);S.items.push({...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),t:Date.now()});save();map.closePopup();redraw()}
+function copyItem(id){const it=S.items.find(i=>i.id===id),c={...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),crops:{...(it.crops||{})},t:Date.now()};delete c.holes;delete c.group;S.items.push(c);save();map.closePopup();redraw()}
 
 /* full backup and restore (fields, layers, points, photos) */
 function backupData(){
@@ -351,12 +403,12 @@ const dkey=i=>i.date||new Date(i.t).toISOString().slice(0,10);
 function historySheet(id){map.closePopup();hist={id,off:new Set()};renderHist()}
 function toggleHist(y){hist.off.has(y)?hist.off.delete(y):hist.off.add(y);renderHist()}
 function renderHist(){
-  const f=S.items.find(i=>i.id===hist.id);
-  const obs=S.items.filter(i=>i.type==='obs'&&ptIn(f.pts,i.pos)).sort((a,b)=>dkey(a).localeCompare(dkey(b)));
+  const f=S.items.find(i=>i.id===hist.id),mm=members(f);
+  const obs=S.items.filter(i=>i.type==='obs'&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(a).localeCompare(dkey(b)));
   const by={};obs.forEach(i=>{(by[dkey(i).slice(0,4)]=by[dkey(i).slice(0,4)]||[]).push(i)});
   const ys=Object.keys(by).sort().reverse();
   const sd=k=>new Date(k+'T12:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
-  let h='<h2>'+esc(f.name)+': history</h2>';
+  let h='<h2>'+esc(f.group||f.name)+': history</h2>'+(f.group?'<div class="small">All '+mm.length+' parts together.</div>':'');
   if(!ys.length)h+='<div class="small">No scouting entries inside this field yet. Entries made with Photo + note count when their location is inside the field.</div>';
   else{
     h+='<div class="small">Tick the years to compare.</div><div class="row" style="flex-wrap:wrap">'+ys.map(y=>'<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:600"><input type="checkbox" style="width:22px;height:22px" '+(hist.off.has(y)?'':'checked')+' onchange="toggleHist(\''+y+'\')">'+y+'</label>').join('')+'</div>';
@@ -368,6 +420,26 @@ function renderHist(){
   }
   open(h+'<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
 }
+
+/* observations list for the picked year */
+let obsF='';
+const layerOf=i=>S.layers.find(x=>x.id===i.layer)||{};
+const nameOf=i=>i.group||i.name;
+const dlabel=k=>new Date(k+'T12:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+function fieldOf(pos){return S.items.find(f=>f.type==='poly'&&layerOf(f).always&&ptIn(f.pts,pos)&&!holesOf(f).some(h=>ptIn(h.pts,pos)))}
+function obsListSheet(){
+  if(draw||edit||pin)return;
+  map.closePopup();
+  const names=[...new Set(S.items.filter(f=>f.type==='poly'&&layerOf(f).always).map(nameOf))].sort();
+  if(obsF&&!names.includes(obsF))obsF='';
+  const rows=S.items.filter(i=>{const l=layerOf(i);return i.type==='obs'&&l.visible&&(l.always||YR==='all'||yrOf(i)===+YR)}).map(i=>({i,f:fieldOf(i.pos)})).filter(r=>!obsF||(r.f&&nameOf(r.f)===obsF)).sort((a,b)=>dkey(b.i).localeCompare(dkey(a.i)));
+  let h='<h2>Observations '+(YR==='all'?'(all years)':YR)+' · '+rows.length+'</h2><label>Field</label><select onchange="obsF=this.value;obsListSheet()"><option value="">All fields</option>'+names.map(n=>'<option'+(n===obsF?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
+  if(!rows.length)h+='<div class="small" style="margin-top:10px">No observations here yet. Use Photo + note to add one.</div>';
+  rows.forEach(({i,f})=>{h+='<div class="orow" onclick="goObs(\''+i.id+'\')"><b>'+dlabel(dkey(i))+'</b> '+esc(f?nameOf(f):'Outside fields')+'<div class="small">'+esc([i.crop,i.stage].filter(Boolean).join(', '))+'</div>'+(i.note?'<div>'+esc(i.note)+'</div>':'')+(i.photos||[]).slice(0,3).map(p=>'<img src="'+p+'">').join('')+'</div>'});
+  open(h+'<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
+}
+function goObs(id){const i=S.items.find(x=>x.id===id),l=layerOf(i);closeSheet();map.setView(i.pos,Math.max(map.getZoom(),17));L.popup().setLatLng(i.pos).setContent(pop(i,l)).openOn(map)}
+$('#fab2').onclick=obsListSheet;
 
 /* photo + note */
 const STAGES='<optgroup label="Cereals"><option>Emerged</option><option>1–2 leaf</option><option>3–4 leaf</option><option>5+ leaf / tillering</option><option>Stem elongation</option><option>Flag leaf</option><option>Boot</option><option>Heading</option><option>Flowering</option><option>Soft dough</option><option>Hard dough</option><option>Ripe</option></optgroup>'+
@@ -396,8 +468,8 @@ async function saveObs(){
 /* export as GeoJSON */
 function exportData(){
   const fc={type:'FeatureCollection',features:S.items.map(i=>{const l=S.layers.find(x=>x.id===i.layer)||{};
-    const g=i.type==='poly'?{type:'Polygon',coordinates:[i.pts.concat([i.pts[0]]).map(p=>[p[1],p[0]])]}:{type:'Point',coordinates:[i.pos[1],i.pos[0]]};
-    return {type:'Feature',geometry:g,properties:{layer:l.name,color:l.color,name:i.name,date:i.date,depth:i.depth,acres:i.type==='poly'?+(area(i.pts)/4046.856).toFixed(2):undefined,crop:i.crop,stage:i.stage,note:i.note,time:new Date(i.t).toISOString(),photos:i.photos}}})};
+    const g=i.type==='poly'?{type:'Polygon',coordinates:[i.pts].concat((i.holes||[]).map(h=>h.pts)).map(r=>r.concat([r[0]]).map(q=>[q[1],q[0]]))}:{type:'Point',coordinates:[i.pos[1],i.pos[0]]};
+    return {type:'Feature',geometry:g,properties:{layer:l.name,color:l.color,name:i.name,date:i.date,depth:i.depth,acres:i.type==='poly'?+(netArea(i)/4046.856).toFixed(2):undefined,group:i.group,crops:i.crops,crop:i.crop,stage:i.stage,note:i.note,time:new Date(i.t).toISOString(),photos:i.photos}}})};
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(fc)],{type:'application/geo+json'}));a.download='scouting-'+new Date().toISOString().slice(0,10)+'.geojson';a.click();
 }
 
