@@ -446,10 +446,11 @@ const STAGES='<optgroup label="Cereals"><option>Emerged</option><option>1–2 le
 '<optgroup label="Canola"><option>Cotyledon</option><option>2–4 leaf</option><option>5–6 leaf</option><option>Rosette</option><option>Bolting</option><option>Flowering</option><option>Podding</option><option>Seed fill</option><option>Ripe</option></optgroup><optgroup label="Other"><option>Other (see note)</option></optgroup>';
 function shrink(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.7))};im.onerror=()=>r(null);im.src=u})}
 $('#bObs').onclick=()=>{if(!gps)startGps();obsSheet()};
+function obsDefault(){const a=S.layers.find(x=>x.id===S.active);if(a&&!a.always)return a.id;return S.layers.some(x=>x.id===S.obsLayer)?S.obsLayer:((S.layers.find(x=>!x.always)||S.layers[0]||{}).id)}
 function obsSheet(){
   const pos=gps?'GPS fix ±'+Math.round(gps.acc)+' m':'No GPS fix yet, will use the map centre';
   open('<h2>Photo + note</h2><div class="small" id="gp">'+pos+'</div>'+
-  '<label>Layer</label><select id="ol">'+layerOpts(S.obsLayer)+'</select>'+
+  '<label>Layer</label><select id="ol">'+layerOpts(obsDefault())+'</select>'+
   '<label>Crop</label><input type="text" id="oc" placeholder="e.g. Wheat, canola">'+'<label>Date</label><input type="date" id="od" value="'+today()+'">'+
   '<label>Growth stage</label><select id="os"><option value="">Not recorded</option>'+STAGES+'</select>'+
   '<label>Notes</label><textarea id="on" rows="3" placeholder="Weeds, disease, insects, stand, moisture"></textarea>'+
@@ -461,8 +462,12 @@ async function saveObs(){
   const photos=[];for(const f of $('#of').files){const d=await shrink(f);if(d)photos.push(d)}
   const c=map.getCenter(),pos=gps?[gps.lat,gps.lng]:[c.lat,c.lng];
   S.obsLayer=$('#ol').value;
-  S.items.push({id:uid(),type:'obs',layer:S.obsLayer,pos,acc:gps?gps.acc:null,crop:$('#oc').value.trim(),date:$('#od').value,stage:$('#os').value,note:$('#on').value.trim(),photos,t:Date.now()});
+  const it={id:uid(),type:'obs',layer:S.obsLayer,pos,acc:gps?gps.acc:null,crop:$('#oc').value.trim(),date:$('#od').value,stage:$('#os').value,note:$('#on').value.trim(),photos,t:Date.now()};
+  S.items.push(it);
+  const l=S.layers.find(x=>x.id===it.layer);if(l)l.visible=true;
+  if(YR!=='all'&&yrOf(it)!==+YR)YR=String(yrOf(it));
   save();closeSheet();redraw();
+  map.panTo(pos);L.popup().setLatLng(pos).setContent(pop(it,l||{name:''})).openOn(map);
 }
 
 /* export as GeoJSON */
