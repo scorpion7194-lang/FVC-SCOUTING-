@@ -47,6 +47,12 @@ button.no{color:var(--warn);border-color:var(--warn)}
 .lbl2{font-size:12px;background:rgba(150,30,30,.8)}
 .orow{border-top:1px solid var(--line);padding:10px 0}
 .orow img{width:72px;height:72px;object-fit:cover;border-radius:6px;margin:6px 6px 0 0}
+#lb{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font:14px system-ui}
+#lb img{max-width:100%;max-height:90%;object-fit:contain}
+.ph{display:inline-block;margin:8px 8px 0 0;vertical-align:top;width:140px}
+.ph img{width:140px;height:140px;object-fit:cover;border-radius:8px;display:block}
+.ph button{width:100%;min-height:36px;margin-top:4px;font-size:14px}
+.pop img[data-zoom]{cursor:zoom-in}
 #drawbar{flex-direction:column}
 #drawbar .r{display:flex;gap:6px}
 #drawbar button{font-size:14px;padding:0 4px}
@@ -78,6 +84,7 @@ button.on{background:var(--ink)!important;color:#fff!important}
 <select id="yr" aria-label="Year"></select>
 <div id="legend"></div>
 <button id="fab2" aria-label="Observations list"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" fill="#1c2b1f"/><circle cx="4" cy="12" r="1" fill="#1c2b1f"/><circle cx="4" cy="18" r="1" fill="#1c2b1f"/></svg></button>
+<div id="lb" class="hide" onclick="this.classList.add('hide')"><img id="lbimg" alt=""><div>Tap anywhere to close</div></div>
 <div id="xh" class="hide"></div>
 <div class="bar hide" id="drawbar">
   <div id="dinfo"></div>
@@ -223,13 +230,13 @@ function redraw(){
   $('#legend').innerHTML=Object.keys(used).sort().map(c=>'<div><i style="background:'+used[c]+'"></i>'+esc(c)+'</div>').join('');
 }
 function pop(i,l){
-  let h='<div class="pop"><b>'+esc(i.name||i.stage||'Note')+'</b><div class="small">'+esc(l.name)+' · '+new Date(i.t).toLocaleString()+'</div>';
+  let h='<div class="pop"><b>'+esc(i.name||i.stage||'Note')+'</b><div class="small">'+esc(l.name)+' · '+(i.type==='obs'&&(i.date||i.t)?dlabel(dkey(i)):new Date(i.t).toLocaleString())+'</div>';
   if(i.type==='poly')h+=polyInfo(i)+cropsLine(i)+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
   else{if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.depth)h+='<div>Depth: '+esc(i.depth)+'</div>';if(i.date)h+='<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
     h+='<div class="small">'+i.pos[0].toFixed(5)+', '+i.pos[1].toFixed(5)+(i.acc?' (±'+Math.round(i.acc)+' m)':'')+'</div>';
-    (i.photos||[]).forEach(p=>h+='<img src="'+p+'">')}
+    (i.photos||[]).forEach(p=>h+='<img data-zoom="1" src="'+p+'">')}
   if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="startCutout(\''+i.id+'\')">Cut out</button><button onclick="copyItem(\''+i.id+'\')">Copy</button><button onclick="historySheet(\''+i.id+'\')">History</button>';
-  if(i.type==='pt')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
+  if(i.type==='pt'||i.type==='obs')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
   return h+'<button class="no" onclick="delItem(\''+i.id+'\')">Delete</button></div>';
 }
 function delItem(id){if(!confirm('Delete this item?'))return;S.items=S.items.filter(i=>i.id!==id);map.closePopup();save();redraw()}
@@ -321,7 +328,7 @@ function endEdit(){map.removeLayer(edit.poly);map.removeLayer(edit.hs);edit=null
 $('#eCancel').onclick=endEdit;
 $('#eDone').onclick=()=>{edit.it.pts=edit.pts;save();endEdit()};
 let detYr='';
-function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);map.closePopup();detYr=cropYear();
+function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);if(it.type==='obs')return obsDetails(id);map.closePopup();detYr=cropYear();
   const groups=[...new Set(S.items.filter(x=>x.type==='poly'&&x.group).map(x=>x.group))];
   const fld=it.type==='poly'&&l.always;
   const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+
@@ -415,11 +422,39 @@ function renderHist(){
     ys.filter(y=>!hist.off.has(y)).forEach(y=>{
       const st=by[y].filter(i=>i.stage).map(i=>sd(dkey(i))+' '+esc(i.stage)).join(' → ');
       h+='<h2 style="margin-top:16px">'+y+'</h2>'+(st?'<div class="small">'+st+'</div>':'');
-      by[y].forEach(i=>{h+='<div style="border-top:1px solid var(--line);padding:8px 0"><b>'+sd(dkey(i))+'</b> '+esc([i.crop,i.stage].filter(Boolean).join(', '))+(i.note?'<div>'+esc(i.note)+'</div>':'')+(i.photos||[]).map(p=>'<img src="'+p+'" style="width:96px;border-radius:6px;margin:4px 4px 0 0">').join('')+'</div>'});
+      by[y].forEach(i=>{h+='<div style="border-top:1px solid var(--line);padding:8px 0"><b>'+sd(dkey(i))+'</b> '+esc([i.crop,i.stage].filter(Boolean).join(', '))+(i.note?'<div>'+esc(i.note)+'</div>':'')+(i.photos||[]).map(p=>'<img data-zoom="1" src="'+p+'" style="width:96px;border-radius:6px;margin:4px 4px 0 0">').join('')+'</div>'});
     });
   }
   open(h+'<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
 }
+
+/* observation details: edit fields, see / add / remove photos */
+let eob=null;
+function renderEPhotos(){$('#xp').innerHTML=eob.photos.length?eob.photos.map((p,k)=>'<div class="ph"><img data-zoom="1" src="'+p+'"><button class="no" onclick="rmPhoto('+k+')">Remove</button></div>').join(''):'<div class="small">No photos yet.</div>'}
+function rmPhoto(k){if(!confirm('Remove this photo?'))return;eob.photos.splice(k,1);renderEPhotos()}
+function obsDetails(id){
+  const it=S.items.find(i=>i.id===id);map.closePopup();eob={id,photos:(it.photos||[]).slice()};
+  open('<h2>'+esc(it.stage||it.crop||'Observation')+'</h2><div class="small">'+dlabel(dkey(it))+' · '+it.pos[0].toFixed(5)+', '+it.pos[1].toFixed(5)+(it.acc?' (GPS ±'+Math.round(it.acc)+' m)':'')+'</div>'+
+  '<div class="small">Tap a photo to see it full size.</div><div id="xp"></div>'+
+  '<label>Add photos</label><input type="file" id="xf" accept="image/*" capture="environment" multiple>'+
+  '<label>Layer</label><select id="xl">'+layerOpts(it.layer)+'</select>'+
+  '<label>Crop</label><input type="text" id="xc" value="'+esc(it.crop||'')+'">'+
+  '<label>Date</label><input type="date" id="xd" value="'+esc(it.date||dkey(it))+'">'+
+  '<label>Growth stage</label><select id="xs"><option value="">Not recorded</option>'+STAGES+'</select>'+
+  '<label>Notes</label><textarea id="xn" rows="4">'+esc(it.note||'')+'</textarea>'+
+  '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" id="xsv" onclick="saveObsDetails()">Save</button></div>');
+  $('#xs').value=it.stage||'';renderEPhotos();
+}
+async function saveObsDetails(){
+  const it=S.items.find(i=>i.id===eob.id),b=$('#xsv');b.disabled=true;b.textContent='Saving…';
+  const photos=eob.photos.slice();for(const f of $('#xf').files){const d=await shrink(f);if(d)photos.push(d)}
+  it.photos=photos;it.layer=$('#xl').value;it.crop=$('#xc').value.trim();it.date=$('#xd').value;it.stage=$('#xs').value;it.note=$('#xn').value.trim();
+  const l=S.layers.find(x=>x.id===it.layer);if(l)l.visible=true;
+  if(YR!=='all'&&yrOf(it)!==+YR)YR=String(yrOf(it));
+  save();closeSheet();redraw();
+  map.panTo(it.pos);L.popup().setLatLng(it.pos).setContent(pop(it,l||{name:''})).openOn(map);
+}
+document.addEventListener('click',e=>{const t=e.target;if(t&&t.matches&&t.matches('img[data-zoom]')){$('#lbimg').src=t.src;$('#lb').classList.remove('hide')}});
 
 /* observations list for the picked year */
 let obsF='';
