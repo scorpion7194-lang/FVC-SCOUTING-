@@ -40,7 +40,9 @@ button.no{color:var(--warn);border-color:var(--warn)}
 #legend{position:absolute;left:12px;top:calc(68px + env(safe-area-inset-top,0px));z-index:900;background:rgba(255,255,255,.9);border-radius:8px;font:600 13px system-ui}
 #legend:empty{display:none}
 #legend div{padding:4px 10px;display:flex;align-items:center;gap:6px}
-#legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
+#legend i{width:14px;height:14px;border-radius:3px;display:inline-block;flex:none}
+#legend span{flex:1}
+#legend b{margin-left:10px;font-weight:700}
 .lbl{text-align:center}
 #fab2{position:absolute;right:12px;top:calc(144px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;padding:0}
 .bub{width:38px;height:38px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.35);color:#fff;font:700 15px/32px system-ui;text-align:center;text-shadow:0 0 3px #000}
@@ -255,14 +257,14 @@ const cropOf=(i,l)=>S.byCrop!==false&&l.always&&i.crops?i.crops[cropYear()]:'';
 const cropsLine=i=>i.crops&&Object.keys(i.crops).length?'<div>Crops: '+Object.keys(i.crops).sort().reverse().map(y=>y+' '+esc(i.crops[y])).join(', ')+'</div>':'';
 function redraw(){
   refreshYears();
-  G.clearLayers();const used={},pins=[],best={},pu={};
+  G.clearLayers();const used={},tot={},pins=[],best={};
   const vis=[];
   S.layers.forEach(l=>{if(!l.visible)return;S.items.filter(i=>i.layer===l.id&&(l.always||YR==='all'||yrOf(i)===+YR)).forEach(i=>vis.push([i,l]))});
   vis.forEach(([i])=>{if(i.type==='poly'&&i.group){const a=netArea(i);if(!best[i.group]||a>best[i.group].a)best[i.group]={a,i}}});
   vis.forEach(([i,l])=>{
     if(edit&&edit.it===i)return;
-    if(i.type!=='poly'){pins.push({i,l});pu[l.name]=l.color;return}
-    const cr=cropOf(i,l),col=cr?cropColor(cr):l.color;if(cr)used[cr]=col;
+    if(i.type!=='poly'){pins.push({i,l});return}
+    const cr=cropOf(i,l),col=cr?cropColor(cr):l.color;if(cr){used[cr]=col;tot[cr]=(tot[cr]||0)+netArea(i)}
     const m=L.polygon([i.pts].concat(holesOf(i).map(h=>h.pts)),{color:col,weight:3,fillOpacity:.25,interactive:false});
     let txt=null;
     if(i.group){if(best[i.group].i===i){const mm=members(i);txt=esc(i.group)+(cr?', '+esc(cr):'')+'<br>'+acOf(mm.reduce((a,x)=>a+netArea(x),0))+' ac'+(mm.length>1?', '+mm.length+' parts':'')}}
@@ -280,7 +282,7 @@ function redraw(){
     const mk=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="bub" style="background:'+c[0].l.color+'">'+c.length+'</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(G);
     mk.on('click',()=>map.fitBounds(L.latLngBounds(c.map(p=>p.i.pos)),{padding:[70,70],maxZoom:19}));
   });
-  $('#legend').innerHTML=Object.keys(used).sort().map(c=>'<div><i style="background:'+used[c]+'"></i>'+esc(c)+'</div>').join('')+Object.keys(pu).sort().map(c=>'<div><i style="background:'+pu[c]+';border-radius:50%"></i>'+esc(c)+'</div>').join('');
+  $('#legend').innerHTML=Object.keys(used).sort().map(c=>'<div><i style="background:'+used[c]+'"></i><span>'+esc(c)+'</span><b>'+(tot[c]/4046.856).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1})+' ac</b></div>').join('');
 }
 function pop(i,l){
   let h='<div class="pop"><b>'+esc(i.type==='obs'?obsLine1(i):(i.name||i.stage||'Note'))+'</b><div class="small">'+esc(l.name)+' · '+(i.type==='obs'&&(i.date||i.t)?dlabel(dkey(i)):new Date(i.t).toLocaleString())+'</div>';
