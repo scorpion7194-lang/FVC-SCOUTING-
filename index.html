@@ -509,17 +509,17 @@ function nearPt(pos,date){
 const nearMsg=nb=>'There is already a soil sample point '+Math.round(nb.d)+' m from here ('+(nb.i.name||'Point')+'). Save another one here anyway?';
 function pinInfo(){
   const s=curSetObj(),el=$('#pinInfo');
-  if(s&&pin){el.innerHTML='<b>'+esc(s.name)+'</b> · core '+(coresOf(s)+1)+' of '+s.n;el.classList.remove('hide')}else el.classList.add('hide');
+  if(s&&pin){el.innerHTML='<b>'+esc(s.name)+'</b> · core '+(coresOf(s)+1)+(s.n?' of '+s.n:'');el.classList.remove('hide')}else el.classList.add('hide');
 }
 function soilStart(fid){
   if(draw||edit||locMode)return;
   const rows=fieldRows(),sel=fid||'',inc=S.sets.filter(s=>!s.done);
   let h='<h2>Soil sample</h2>';
-  if(inc.length)h+='<h3>Unfinished</h3>'+inc.map(s=>'<div class="orow"><b>'+esc(s.name)+'</b><div class="small">'+coresOf(s)+' of '+s.n+' cores taken</div><div class="two" style="margin-top:6px"><button class="go" onclick="resumeSet(\''+s.id+'\')">Continue</button><button onclick="finishSet(\''+s.id+'\')">Finish now</button></div></div>').join('');
+  if(inc.length)h+='<h3>Unfinished</h3>'+inc.map(s=>'<div class="orow"><b>'+esc(s.name)+'</b><div class="small">'+coresOf(s)+(s.n?' of '+s.n:'')+' cores taken</div><div class="two" style="margin-top:6px"><button class="go" onclick="resumeSet(\''+s.id+'\')">Continue</button><button onclick="finishSet(\''+s.id+'\')">Finish now</button></div></div>').join('');
   h+='<h3>New composite sample</h3><div class="small">Take several cores around the field. They are mixed and sent as one sample.</div>'+
     '<label>Field</label><select id="ssf" onchange="soilName()"><option value="">Not tied to a field</option>'+rows.map(r=>'<option value="'+r.i.id+'"'+(members(r.i).some(m=>m.id===sel)?' selected':'')+'>'+esc(r.name)+'</option>').join('')+'</select>'+
     '<label>Sample name</label><input type="text" id="ssn" value="">'+
-    '<label>Number of cores</label><input type="number" id="ssc" min="1" max="30" value="'+(S.coreN||5)+'">'+
+    '<label>Number of cores (optional)</label><input type="number" id="ssc" min="1" max="30" value="" placeholder="Leave blank if not decided yet">'+
     '<label>Depth</label><select id="ssd"><option value="">Not recorded</option>'+['0–6 in','6–12 in','12–24 in','0–12 in','0–24 in'].map(d=>'<option'+(S.lastDepth===d?' selected':'')+'>'+d+'</option>').join('')+'</select>'+
     '<label>Date</label><input type="date" id="ssdt" value="'+today()+'">'+
     '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="setStart()">Start sampling</button></div>'+
@@ -528,16 +528,16 @@ function soilStart(fid){
 }
 function soilName(){const f=S.items.find(x=>x.id===$('#ssf').value);$('#ssn').value=(f?nameOf(f):'Soil sample')+' '+yrOf({date:$('#ssdt').value||today()})}
 function setStart(){
-  const n=Math.round(+$('#ssc').value);if(!(n>=1&&n<=30)){alert('Enter how many cores, from 1 to 30.');return}
+  const raw=$('#ssc').value.trim(),n=raw===''?0:Math.round(+raw);if(raw!==''&&!(n>=1&&n<=30)){alert('Enter how many cores (1 to 30), or leave it blank if you have not decided yet.');return}
   const s={id:uid(),name:$('#ssn').value.trim()||'Soil sample',field:$('#ssf').value,n,depth:$('#ssd').value,date:$('#ssdt').value||today(),done:false};
-  S.sets.push(s);S.curSet=s.id;S.coreN=n;S.lastDepth=s.depth;save();closeSheet();pinOn();
+  S.sets.push(s);S.curSet=s.id;S.lastDepth=s.depth;save();closeSheet();pinOn();
 }
 function soilSingle(){S.curSet='';closeSheet();pinOn()}
 function resumeSet(id){S.curSet=id;closeSheet();pinOn()}
 function finishSet(id){const s=S.sets.find(x=>x.id===id);if(!s)return;if(!coresOf(s)){S.sets=S.sets.filter(x=>x.id!==id)}else s.done=true;if(S.curSet===id)S.curSet='';save();soilStart()}
 function coreSheet(cs,pos,acc){
   $('#pinbar').classList.add('hide');
-  open('<h2>Core '+(coresOf(cs)+1)+' of '+cs.n+'</h2><div class="small">'+esc(cs.name)+(cs.depth?' · '+esc(cs.depth):'')+'<br>'+pos[0].toFixed(5)+', '+pos[1].toFixed(5)+(acc?' (GPS ±'+Math.round(acc)+' m)':' (crosshair)')+'</div>'+
+  open('<h2>Core '+(coresOf(cs)+1)+(cs.n?' of '+cs.n:'')+'</h2><div class="small">'+esc(cs.name)+(cs.depth?' · '+esc(cs.depth):'')+'<br>'+pos[0].toFixed(5)+', '+pos[1].toFixed(5)+(acc?' (GPS ±'+Math.round(acc)+' m)':' (crosshair)')+'</div>'+
     '<label>Notes (optional)</label><textarea id="tt" rows="2"></textarea>'+
     '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveCore('+pos[0]+','+pos[1]+','+(acc||0)+')">Save core</button></div>');
 }
@@ -546,7 +546,7 @@ function saveCore(a,b,acc){
   const nb=nearPt([a,b],cs.date);if(nb&&!confirm(nearMsg(nb)))return;
   const k=coresOf(cs)+1,lid=S.layers.some(l=>l.id===S.ptLayer)?S.ptLayer:S.active;
   S.items.push({id:uid(),type:'pt',layer:lid,name:cs.name+' – core '+k,set:cs.id,core:k,pos:[a,b],acc:acc||null,depth:cs.depth,date:cs.date,note:$('#tt').value.trim(),photos:[],t:Date.now()});
-  if(k>=cs.n){cs.done=true;S.curSet='';save();closeSheet();redraw();endPin();alert('All '+cs.n+' cores taken. '+cs.name+' is complete and ready to mix and send.');return}
+  if(cs.n&&k>=cs.n){cs.done=true;S.curSet='';save();closeSheet();redraw();endPin();alert('All '+cs.n+' cores taken. '+cs.name+' is complete and ready to mix and send.');return}
   save();closeSheet();redraw();pinInfo();
 }
 
@@ -788,7 +788,7 @@ function fieldSheet(id){
   (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
   (f.note?'<div class="notebox">'+esc(f.note)+'</div>':'')+
   '<div class="pop" style="margin-top:6px">'+polyInfo(f)+'</div>'+
-  (()=>{const ss=S.sets.filter(x=>mm.some(m=>m.id===x.field)&&yrOf({date:x.date})===+cropYear());return ss.length?'<h3>Soil samples</h3>'+ss.map(x=>'<div class="orow"'+(x.done?'':' onclick="resumeSet(\''+x.id+'\')"')+'><b>'+esc(x.name)+'</b><div class="small">'+(x.done?'✓ '+coresOf(x)+' cores · '+dlabel(x.date):coresOf(x)+' of '+x.n+' cores · tap to continue')+'</div></div>').join(''):''})()+
+  (()=>{const ss=S.sets.filter(x=>mm.some(m=>m.id===x.field)&&yrOf({date:x.date})===+cropYear());return ss.length?'<h3>Soil samples</h3>'+ss.map(x=>'<div class="orow"'+(x.done?'':' onclick="resumeSet(\''+x.id+'\')"')+'><b>'+esc(x.name)+'</b><div class="small">'+(x.done?'✓ '+coresOf(x)+' cores · '+dlabel(x.date):coresOf(x)+(x.n?' of '+x.n:'')+' cores · tap to continue')+'</div></div>').join(''):''})()+
   '<h3>Recent observations</h3>'+
   (obs.length?obs.map(i=>'<div class="orow" onclick="goObs(\''+i.id+'\')"><b>'+esc(obsLine1(i))+'</b><div class="small">'+dlabel(dkey(i))+((i.photos||[]).length?' · Photo':'')+(i.crop?' · '+esc(i.crop):'')+'</div></div>').join(''):'<div class="small">Nothing scouted in this field yet.</div>')+
   '<div class="two" style="margin-top:12px"><button onclick="fieldGo(\'edit\',\''+id+'\')">Edit corners</button><button onclick="fieldGo(\'cut\',\''+id+'\')">Cut out</button><button onclick="fieldGo(\'copy\',\''+id+'\')">Copy</button></div>'+
