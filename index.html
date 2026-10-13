@@ -141,6 +141,14 @@ button.no,.sheet button.no{color:#ff9a7a;border-color:#ff9a7a;background:transpa
 #fab,#fab2,#fabH{background:#221a0a;border-color:#f4c84f}
 #fab svg,#fab2 svg,#fabH svg{stroke:#f4c84f}
 #fab svg circle[fill],#fab2 svg circle[fill]{fill:#f4c84f}
+.htiles .wide{grid-column:1/-1}
+.htiles button.due{border-color:#ff9a7a}.htiles button.due span{color:#ff9a7a;font-weight:700}
+.trow{display:flex;gap:10px;align-items:flex-start}
+.sheet .tk{width:38px;height:38px;min-height:38px;flex:0 0 38px;border-radius:50%;padding:0;font:700 20px/1 system-ui;margin:0}
+.sheet .tk.on{background:#f4c84f;color:#241b08}
+.late{color:#ff9a7a!important;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.sheet .chips button{flex:1 0 28%;min-height:40px;padding:0 8px;font-size:14px}
 </style>
 </head>
 <body>
@@ -153,6 +161,7 @@ button.no,.sheet button.no{color:#ff9a7a;border-color:#ff9a7a;background:transpa
   </div>
   <div class="hstats" id="hstats"></div>
   <div class="htiles">
+    <button data-go="tasks" id="tTasks" class="wide"><svg viewBox="0 0 24 24"><path d="M9 3h6v3H9z"/><path d="M7 5H5v16h14V5h-2"/><path d="M9 14l2 2 4-4"/></svg><b>Tasks &amp; Reminders</b><span id="tTaskSub"></span></button>
     <button data-go="map"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><b>Field Map</b><span>Your fields and pins</span></button>
     <button data-go="scout"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><b>Scout Field</b><span>Weeds, disease, insects, photos</span></button>
     <button data-go="soil"><svg viewBox="0 0 24 24"><path d="M12 3v13M8 7h8M12 16v4"/><path d="M4 21h16"/></svg><b>Soil Sample</b><span>Drop a sample point</span></button>
@@ -282,7 +291,7 @@ function refreshYears(){
   $('#yr').value=YR;
 }
 $('#yr').onchange=()=>{YR=$('#yr').value;redraw()};
-function migrate(){S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())})}
+function migrate(){S.tasks=S.tasks||[];S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())})}
 const CROPC={wheat:'#d64545',barley:'#43a047',canola:'#f2c94c',oats:'#fb8c00',peas:'#26a69a',silage:'#8e24aa',hay:'#1e88e5',alfalfa:'#1e88e5',fallow:'#9e9e9e',flax:'#5c6bc0',corn:'#cddc39',lentil:'#a1887f'};
 function cropColor(c){const k=c.toLowerCase().trim();if(S.cropColors&&S.cropColors[k])return S.cropColors[k];for(const n in CROPC)if(k.includes(n))return CROPC[n];let h=0;for(const ch of k)h=(h*31+ch.charCodeAt(0))%360;return 'hsl('+h+',55%,45%)'}
 const DEFCROPS=['Wheat','Barley','Canola','Oats','Peas','Silage','Hay','Fallow','Flax','Lentils'];
@@ -719,7 +728,8 @@ function fieldSheet(id){
   const obs=S.items.filter(i=>i.type==='obs'&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(b).localeCompare(dkey(a))).slice(0,5);
   open('<h2 style="margin:0">'+esc(f.group||f.name)+'</h2>'+
   '<div class="small">'+(crop?esc(crop)+' ('+yr+') · ':'')+acOf(total)+' ac'+(mm.length>1?' · '+mm.length+' parts':'')+(seeded?' · seeded '+dlabel(seeded):'')+'</div>'+
-  '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="detailsSheet(\''+id+'\')">FIELD NOTES</button></div>'+
+  '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="detailsSheet(\''+id+'\')">FIELD NOTES</button><button style="grid-column:1/-1" onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
+  (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
   (f.note?'<div class="notebox">'+esc(f.note)+'</div>':'')+
   '<div class="pop" style="margin-top:6px">'+polyInfo(f)+'</div>'+
   '<h3>Recent observations</h3>'+
@@ -761,12 +771,80 @@ function showHome(){
   const keys=new Set(fieldRows().map(r=>r.i.id)),yr=cropYear(),crops=new Set(fieldRows().map(r=>r.crop).filter(Boolean)),cut=Date.now()-30*864e5,done=new Set();
   S.items.forEach(i=>{if(i.type==='obs'&&new Date(dkey(i)+'T12:00').getTime()>=cut){const f=fieldOf(i.pos);if(f)done.add(f.group?'g:'+f.group:f.id)}});
   $('#hstats').innerHTML=stat(keys.size,'Fields')+stat(crops.size,'Crop types in '+yr)+stat(done.size,'Fields scouted in 30 days');
+  const dc=dueCount(),oc=S.tasks.filter(t=>!t.done).length,tt=$('#tTasks');
+  tt.classList.toggle('due',dc>0);$('#tTaskSub').textContent=dc?dc+(dc===1?' task due now':' tasks due now'):oc?oc+' coming up':'Nothing due';
   $('#home').classList.remove('hide');
 }
 function hideHome(){$('#home').classList.add('hide')}
-const HGO={map:()=>{},scout:()=>scoutStart(),soil:()=>$('#bPt').click(),draw:()=>$('#bDraw').click(),obs:()=>obsListSheet(),fields:()=>fieldsSheet(),layers:()=>layersSheet()};
+const HGO={map:()=>{},scout:()=>scoutStart(),soil:()=>$('#bPt').click(),draw:()=>$('#bDraw').click(),obs:()=>obsListSheet(),fields:()=>fieldsSheet(),layers:()=>layersSheet(),tasks:()=>{tkHome=true;tasksSheet()}};
 document.querySelectorAll('#home [data-go]').forEach(b=>b.onclick=()=>{hideHome();HGO[b.dataset.go]()});
 $('#fabH').onclick=()=>{if(draw||edit||pin||locMode)return;closeSheet();map.closePopup();showHome()};
+
+/* tasks & reminders */
+const addDays=(k,from)=>{const d=from?new Date(from+'T12:00'):new Date();d.setDate(d.getDate()+k);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
+const daysTo=k=>Math.round((new Date(k+'T12:00')-new Date(today()+'T12:00'))/864e5);
+const dueText=k=>{const n=daysTo(k);return n===0?'today':n===1?'tomorrow':n===-1?'1 day overdue':n<0?(-n)+' days overdue':'in '+n+' days'};
+const dueCount=()=>(S.tasks||[]).filter(t=>!t.done&&t.due<=today()).length;
+let tk={},tkHome=false,tkDone=false;
+function taskRow(t){
+  const f=t.field&&S.items.find(x=>x.id===t.field),nm=f?nameOf(f):(t.fname||''),late=!t.done&&daysTo(t.due)<0;
+  return '<div class="orow trow" onclick="taskForm(\''+t.id+'\')"><button class="tk'+(t.done?' on':'')+'" onclick="event.stopPropagation();taskToggle(\''+t.id+'\')">'+(t.done?'✓':'')+'</button><div><b>'+esc(t.title)+'</b>'+(nm?' · '+esc(nm):'')+
+    '<div class="small'+(late?' late':'')+'">'+(t.done?'Done '+dlabel(t.doneOn||t.due):dlabel(t.due)+' · '+dueText(t.due))+'</div>'+(t.note?'<div class="small">'+esc(t.note)+'</div>':'')+'</div></div>';
+}
+function tasksSheet(){
+  if(draw||edit||pin||locMode)return;
+  map.closePopup();
+  const all=S.tasks||[],open_=all.filter(t=>!t.done).sort((a,b)=>a.due.localeCompare(b.due)),td=today(),
+    late=open_.filter(t=>t.due<td),now=open_.filter(t=>t.due===td),next=open_.filter(t=>t.due>td),done=all.filter(t=>t.done).sort((a,b)=>(b.doneOn||'').localeCompare(a.doneOn||''));
+  let h='<h2>Tasks &amp; reminders</h2><div class="btns" style="margin-top:6px"><button class="go" onclick="taskForm()">+ Add task</button></div>';
+  if(!open_.length)h+='<div class="small" style="margin-top:12px">Nothing to do right now. Tap + Add task, or open a field and tap Reminder.</div>';
+  if(late.length)h+='<h3 class="late">Overdue · '+late.length+'</h3>'+late.map(taskRow).join('');
+  if(now.length)h+='<h3>Today · '+now.length+'</h3>'+now.map(taskRow).join('');
+  if(next.length)h+='<h3>Coming up · '+next.length+'</h3>'+next.map(taskRow).join('');
+  if(done.length){h+='<h3 onclick="tkDone=!tkDone;tasksSheet()" style="cursor:pointer">Done · '+done.length+' '+(tkDone?'▲':'▼')+'</h3>';if(tkDone)h+=done.slice(0,30).map(taskRow).join('')+'<div class="btns"><button class="no" onclick="taskClearDone()">Clear done</button></div>'}
+  open(h+'<div class="btns"><button class="go" onclick="tasksClose()">Done</button></div>');
+}
+function tasksClose(){closeSheet();if(tkHome){tkHome=false;showHome()}}
+function taskToggle(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;t.done=!t.done;t.doneOn=t.done?today():'';save();tasksSheet()}
+function taskClearDone(){if(!confirm('Remove all finished tasks from the list?'))return;S.tasks=S.tasks.filter(t=>!t.done);save();tasksSheet()}
+const TKT=['Check spray results','Re-scout field','Check emergence','Take soil sample','Check seeding'];
+function taskForm(id,fid,back){
+  const t=id?S.tasks.find(x=>x.id===id):null;
+  tk={id:id||'',back:back||'',fid:fid||(t&&t.field)||''};
+  const names=fieldRows(),sel=t?t.field:(fid||'');
+  open('<h2>'+(t?'Edit task':'New task')+'</h2><label>What needs doing?</label><input type="text" id="tkt" value="'+esc(t?t.title:'')+'" placeholder="e.g. Check wild oat spray">'+
+    '<div class="chips">'+TKT.map(x=>'<button onclick="$(\'#tkt\').value=this.textContent">'+x+'</button>').join('')+'</div>'+
+    '<label>Field (optional)</label><select id="tkf"><option value="">No field</option>'+names.map(r=>'<option value="'+r.i.id+'"'+(members(r.i).some(m=>m.id===sel)?' selected':'')+'>'+esc(r.name)+'</option>').join('')+'</select>'+
+    '<label>Come back on</label><div class="chips">'+[[1,'Tomorrow'],[3,'3 days'],[7,'1 week'],[10,'10 days'],[14,'2 weeks'],[30,'1 month']].map(c=>'<button data-k="'+c[0]+'" onclick="tkSet('+c[0]+')">'+c[1]+'</button>').join('')+'</div>'+
+    '<input type="date" id="tkd" value="'+(t?t.due:addDays(7))+'" oninput="tkMark()">'+
+    '<label>Notes (optional)</label><textarea id="tkn" rows="3">'+esc(t?t.note:'')+'</textarea>'+
+    (t?'<div class="two" style="margin-top:12px"><button onclick="taskIcs(\''+t.id+'\')">Phone calendar alert</button>'+(t.field&&S.items.some(x=>x.id===t.field)?'<button onclick="taskGo(\''+t.id+'\')">Show field</button>':'')+'<button class="no" onclick="taskDel(\''+t.id+'\')">Delete</button></div>':'')+
+    '<div class="btns"><button onclick="taskBack()">Cancel</button><button class="go" onclick="taskSave()">Save</button></div>');
+  tkMark();
+}
+function tkSet(k){$('#tkd').value=addDays(k);tkMark()}
+function tkMark(){document.querySelectorAll('.chips button[data-k]').forEach(b=>b.classList.toggle('go',addDays(+b.dataset.k)===$('#tkd').value))}
+function taskBack(){if(tk.back==='field'&&tk.fid&&S.items.some(x=>x.id===tk.fid))fieldSheet(tk.fid);else tasksSheet()}
+function taskSave(){
+  const due=$('#tkd').value;if(!due){alert('Pick the day to come back.');return}
+  const fid=$('#tkf').value,f=fid&&S.items.find(x=>x.id===fid),title=$('#tkt').value.trim()||(f?'Check '+nameOf(f):'Task');
+  let t=tk.id&&S.tasks.find(x=>x.id===tk.id);
+  if(!t){t={id:uid(),created:today(),done:false};S.tasks.push(t)}
+  Object.assign(t,{title,due,field:fid,fname:f?nameOf(f):'',note:$('#tkn').value.trim()});
+  if(f)tk.fid=fid;
+  save();taskBack();
+}
+function taskDel(id){if(!confirm('Delete this task?'))return;S.tasks=S.tasks.filter(t=>t.id!==id);save();taskBack()}
+function taskGo(id){const t=S.tasks.find(x=>x.id===id);if(t&&t.field&&S.items.some(x=>x.id===t.field)){tkHome=false;goField(t.field)}}
+function taskIcs(id){
+  const t=S.tasks.find(x=>x.id===id);if(!t)return;
+  const q=s=>String(s||'').replace(/[\;,]/g,m=>'\\'+m).replace(/\r?\n/g,'\\n'),
+    nm=t.field&&S.items.find(x=>x.id===t.field),name=nm?nameOf(nm):(t.fname||'');
+  const s=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Fairview Scouting//EN','BEGIN:VEVENT','UID:'+t.id+'@fairview-scouting','DTSTAMP:'+new Date().toISOString().replace(/[-:]/g,'').slice(0,15)+'Z',
+    'DTSTART;VALUE=DATE:'+t.due.replace(/-/g,''),'DTEND;VALUE=DATE:'+addDays(1,t.due).replace(/-/g,''),'SUMMARY:'+q(t.title+(name?' – '+name:'')),'DESCRIPTION:'+q(t.note),
+    'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+q(t.title),'TRIGGER:PT8H','END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'text/calendar'}));a.download='reminder-'+t.due+'.ics';a.click();
+}
 
 /* export as GeoJSON */
 function exportData(){
