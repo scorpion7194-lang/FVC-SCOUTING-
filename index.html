@@ -150,6 +150,10 @@ button.no,.sheet button.no{color:#ff9a7a;border-color:#ff9a7a;background:transpa
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
 .sheet .chips button{flex:1 0 28%;min-height:40px;padding:0 8px;font-size:14px}
 #pinInfo{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:1100;background:rgba(26,20,7,.95);color:#f4c84f;border:2px solid #f4c84f;border-radius:12px;padding:8px 14px;font:600 15px system-ui;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}#pinInfo.hide{display:none}
+body.rnd .lbl{display:none}
+#pinbar:not(.round) #rMark{display:none}#pinbar.round #pGps,#pinbar.round #pDrop{display:none}
+.pin.todo{background:#ff7a00!important;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 6px rgba(255,122,0,.55);animation:tdp 1.3s infinite}
+@keyframes tdp{50%{box-shadow:0 0 0 2px #000,0 0 0 12px rgba(255,122,0,0)}}
 </style>
 </head>
 <body>
@@ -203,7 +207,7 @@ button.no,.sheet button.no{color:#ff9a7a;border-color:#ff9a7a;background:transpa
 <div class="bar hide" id="locbar"><button id="lCancel" class="no">Cancel</button><button id="lSet" class="go">Set location here</button></div>
 
 <div id="pinInfo" class="hide"></div>
-<div class="bar hide" id="pinbar"><button id="pCancel" class="no">Done</button><button id="pGps">At my location</button><button id="pDrop" class="go">Drop at crosshair</button></div>
+<div class="bar hide" id="pinbar"><button id="pCancel" class="no">Done</button><button id="pGps">At my location</button><button id="pDrop" class="go">Drop at crosshair</button><button id="rMark" class="go">Mark nearest as sampled</button></div>
 
 <div class="sheet hide" id="sheet"></div>
 
@@ -293,7 +297,7 @@ function refreshYears(){
   $('#yr').value=YR;
 }
 $('#yr').onchange=()=>{YR=$('#yr').value;redraw()};
-function migrate(){S.tasks=S.tasks||[];S.sets=S.sets||[];S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())})}
+function migrate(){S.tasks=S.tasks||[];S.sets=S.sets||[];S.rounds=S.rounds||[];if(S.round===undefined)S.round=null;S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())})}
 const CROPC={wheat:'#d64545',barley:'#43a047',canola:'#f2c94c',oats:'#fb8c00',peas:'#26a69a',silage:'#8e24aa',hay:'#1e88e5',alfalfa:'#1e88e5',fallow:'#9e9e9e',flax:'#5c6bc0',corn:'#cddc39',lentil:'#a1887f'};
 function cropColor(c){const k=c.toLowerCase().trim();if(S.cropColors&&S.cropColors[k])return S.cropColors[k];for(const n in CROPC)if(k.includes(n))return CROPC[n];let h=0;for(const ch of k)h=(h*31+ch.charCodeAt(0))%360;return 'hsl('+h+',55%,45%)'}
 const DEFCROPS=['Wheat','Barley','Canola','Oats','Peas','Silage','Hay','Fallow','Flax','Lentils'];
@@ -327,9 +331,11 @@ function redraw(){
   });
   /* pins: nearby ones in the same layer collapse into a numbered bubble */
   const z=map.getZoom(),cells={};
-  pins.forEach(p=>{const q=map.project(p.i.pos,z),k=p.l.id+':'+Math.floor(q.x/48)+':'+Math.floor(q.y/48);(cells[k]=cells[k]||[]).push(p)});
+  const rs=S.round?new Set(S.round.spots):null,mkPin=(i,l,todo)=>{const m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin'+(todo?' todo':'')+'" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:todo?500:0});m.bindPopup(()=>pop(i,l));m.addTo(G)};
+  const rest=pins.filter(p=>!(rs&&rs.has(p.i.id)));pins.filter(p=>rs&&rs.has(p.i.id)).forEach(p=>mkPin(p.i,p.l,!S.round.done[p.i.id]));
+  rest.forEach(p=>{const q=map.project(p.i.pos,z),k=p.l.id+':'+Math.floor(q.x/48)+':'+Math.floor(q.y/48);(cells[k]=cells[k]||[]).push(p)});
   Object.values(cells).forEach(c=>{
-    if(c.length===1||z>=19){c.forEach(({i,l})=>{const m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})});m.bindPopup(()=>pop(i,l));m.addTo(G)});return}
+    if(c.length===1||z>=19){c.forEach(({i,l})=>mkPin(i,l,false));return}
     const lat=c.reduce((a,p)=>a+p.i.pos[0],0)/c.length,lng=c.reduce((a,p)=>a+p.i.pos[1],0)/c.length;
     const mk=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="bub" style="background:'+c[0].l.color+'">'+c.length+'</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(G);
     mk.on('click',()=>map.fitBounds(L.latLngBounds(c.map(p=>p.i.pos)),{padding:[70,70],maxZoom:19}));
@@ -339,10 +345,11 @@ function redraw(){
 function pop(i,l){
   let h='<div class="pop"><b>'+esc(i.type==='obs'?obsLine1(i):(i.name||i.stage||'Note'))+'</b><div class="small">'+esc(l.name)+' · '+(i.type==='obs'&&(i.date||i.t)?dlabel(dkey(i)):new Date(i.t).toLocaleString())+'</div>';
   if(i.type==='poly')h+=polyInfo(i)+cropsLine(i)+(i.date?'<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>':'')+(i.note?'<div>'+esc(i.note)+'</div>':'');
-  else{if(i.type==='obs'){const f=fieldOf(i.pos);if(f)h+='<div>Field: '+esc(nameOf(f))+'</div>'}if(i.sev)h+='<div>Severity: '+esc(i.sev)+'</div>';if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.depth)h+='<div>Depth: '+esc(i.depth)+'</div>';if(i.date)h+='<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
+  else{if(i.type==='obs'){const f=fieldOf(i.pos);if(f)h+='<div>Field: '+esc(nameOf(f))+'</div>'}if(i.sev)h+='<div>Severity: '+esc(i.sev)+'</div>';if(i.crop)h+='<div>Crop: '+esc(i.crop)+'</div>';if(i.depth)h+='<div>Depth: '+esc(i.depth)+'</div>';if(i.samples&&i.samples.length)h+='<div>Last sampled: '+dlabel(i.samples[i.samples.length-1])+'</div>';if(i.date)h+='<div>Date: '+new Date(i.date+'T12:00').toLocaleDateString()+'</div>';if(i.stage)h+='<div>Stage: '+esc(i.stage)+'</div>';if(i.note)h+='<div>'+esc(i.note)+'</div>';
     h+='<div class="small">'+i.pos[0].toFixed(5)+', '+i.pos[1].toFixed(5)+(i.acc?' (±'+Math.round(i.acc)+' m)':'')+'</div>';
     (i.photos||[]).forEach(p=>h+='<img data-zoom="1" src="'+p+'">')}
   if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="startCutout(\''+i.id+'\')">Cut out</button><button onclick="copyItem(\''+i.id+'\')">Copy</button><button onclick="historySheet(\''+i.id+'\')">History</button>';
+  if(i.type==='pt'&&S.round&&S.round.spots.includes(i.id))h+=S.round.done[i.id]?'<button onclick="roundMark(\''+i.id+'\',false)">Not sampled yet</button>':'<button class="go" onclick="roundMark(\''+i.id+'\',true)">Mark sampled</button>';
   if(i.type==='pt'||i.type==='obs')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
   return h+'<button class="no" onclick="delItem(\''+i.id+'\')">Delete</button></div>';
 }
@@ -468,12 +475,12 @@ function restoreData(){
 
 /* soil sample points: crosshair or GPS, repeat quickly */
 let pin=false;
-function endPin(){pin=false;S.curSet='';$('#pinInfo').classList.add('hide');$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
+function endPin(){pin=false;document.body.classList.remove('rnd');clearInterval(rTimer);$('#pinbar').classList.remove('round');$('#pinInfo').classList.add('hide');$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
 function pinOn(){
   let l=S.layers.find(x=>x.name==='Soil samples');
   if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true,always:true};S.layers.push(l);save()}
   l.visible=true;if(!S.ptLayer)S.ptLayer=l.id;redraw();
-  pin=true;$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#xh').classList.remove('hide');if(!watching)startGps();pinInfo();
+  pin=true;$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#pinbar').classList.remove('round');$('#xh').classList.remove('hide');if(!watching)startGps();
 }
 $('#bPt').onclick=()=>soilStart();
 $('#pCancel').onclick=endPin;
@@ -481,12 +488,11 @@ $('#pDrop').onclick=()=>{const c=map.getCenter();ptSheet([c.lat,c.lng],null)};
 $('#pGps').onclick=()=>{const f=()=>ptSheet([gps.lat,gps.lng],gps.acc);if(gps)f();else if(watching)alert('Still waiting for a GPS fix. Try again in a moment.');else startGps(f)};
 const nextName=n=>{const m=n.match(/^(.*?)(\d+)$/);return m?m[1]+(+m[2]+1):n};
 function ptSheet(pos,acc){
-  const cs=curSetObj();if(cs){coreSheet(cs,pos,acc);return}
   $('#pinbar').classList.add('hide');
   const sel=S.layers.some(l=>l.id===S.ptLayer)?S.ptLayer:S.active;
-  open('<h2>Sample point</h2><div class="small">'+pos[0].toFixed(5)+', '+pos[1].toFixed(5)+(acc?' (GPS ±'+Math.round(acc)+' m)':' (crosshair)')+'</div>'+
+  open('<h2>Sample spot</h2><div class="small">'+pos[0].toFixed(5)+', '+pos[1].toFixed(5)+(acc?' (GPS ±'+Math.round(acc)+' m)':' (crosshair)')+'</div>'+
   '<label>Layer</label><select id="tl">'+layerOpts(sel)+'</select>'+
-  '<label>Name / sample ID</label><input type="text" id="tn" value="'+esc(nextName(S.lastPt||''))+'" placeholder="e.g. 220S-1">'+
+  '<label>Name / sample ID</label><input type="text" id="tn" value="'+esc(spotName(pos))+'" placeholder="e.g. 220S-1">'+
   '<label>Depth</label><select id="td"><option value="">Not recorded</option><option>0–6 in</option><option>6–12 in</option><option>12–24 in</option><option>0–12 in</option><option>0–24 in</option></select>'+
   '<label>Date</label><input type="date" id="tdt" value="'+today()+'">'+
   '<label>Notes</label><textarea id="tt" rows="2"></textarea>'+
@@ -499,56 +505,80 @@ function savePt(a,b,acc){
   save();closeSheet();redraw();
 }
 
-/* composite soil sampling: one sample = several cores, mixed and sent as one */
-const coresOf=s=>S.items.filter(i=>i.type==='pt'&&i.set===s.id).length;
-const curSetObj=()=>S.curSet?S.sets.find(s=>s.id===S.curSet&&!s.done):null;
+/* soil sampling: map the spots once, then sample a field round by round */
 function nearPt(pos,date){
   const y=yrOf({date}),r=S.items.filter(i=>i.type==='pt'&&yrOf(i)===y).map(i=>({i,d:dist(i.pos,pos)})).filter(x=>x.d<20).sort((a,b)=>a.d-b.d);
   return r[0]||null;
 }
-const nearMsg=nb=>'There is already a soil sample point '+Math.round(nb.d)+' m from here ('+(nb.i.name||'Point')+'). Save another one here anyway?';
-function pinInfo(){
-  const s=curSetObj(),el=$('#pinInfo');
-  if(s&&pin){el.innerHTML='<b>'+esc(s.name)+'</b> · core '+(coresOf(s)+1)+(s.n?' of '+s.n:'');el.classList.remove('hide')}else el.classList.add('hide');
+const nearMsg=nb=>'There is already a soil sample spot '+Math.round(nb.d)+' m from here ('+(nb.i.name||'Point')+'). Save another one here anyway?';
+function spotsOf(fid){
+  const f=S.items.find(x=>x.id===fid);if(!f)return[];const mm=members(f);
+  return S.items.filter(i=>i.type==='pt'&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos))));
+}
+function spotName(pos){const f=fieldOf(pos);return f?nameOf(f)+' '+(spotsOf(f.id).length+1):nextName(S.lastPt||'')}
+const rDone=()=>S.round?S.round.spots.filter(id=>S.round.done[id]).length:0;
+function nearestTodo(){
+  const r=S.round;if(!r||!gps)return null;
+  return r.spots.filter(id=>!r.done[id]).map(id=>S.items.find(x=>x.id===id)).filter(Boolean).map(i=>({i,d:dist([gps.lat,gps.lng],i.pos)})).sort((a,b)=>a.d-b.d)[0]||null;
+}
+let rTimer=0;
+function roundInfo(){
+  const r=S.round,el=$('#pinInfo');
+  if(!r||!pin||!$('#pinbar').classList.contains('round')){el.classList.add('hide');return}
+  const nx=nearestTodo();
+  el.innerHTML='<b>'+esc(r.name)+'</b> · '+rDone()+' of '+r.spots.length+' sampled'+(nx?' · nearest '+Math.round(nx.d)+' m':'');
+  el.classList.remove('hide');
 }
 function soilStart(fid){
   if(draw||edit||locMode)return;
-  const rows=fieldRows(),sel=fid||'',inc=S.sets.filter(s=>!s.done);
-  let h='<h2>Soil sample</h2>';
-  if(inc.length)h+='<h3>Unfinished</h3>'+inc.map(s=>'<div class="orow"><b>'+esc(s.name)+'</b><div class="small">'+coresOf(s)+(s.n?' of '+s.n:'')+' cores taken</div><div class="two" style="margin-top:6px"><button class="go" onclick="resumeSet(\''+s.id+'\')">Continue</button><button onclick="finishSet(\''+s.id+'\')">Finish now</button></div></div>').join('');
-  h+='<h3>New composite sample</h3><div class="small">Take several cores around the field. They are mixed and sent as one sample.</div>'+
-    '<label>Field</label><select id="ssf" onchange="soilName()"><option value="">Not tied to a field</option>'+rows.map(r=>'<option value="'+r.i.id+'"'+(members(r.i).some(m=>m.id===sel)?' selected':'')+'>'+esc(r.name)+'</option>').join('')+'</select>'+
-    '<label>Sample name</label><input type="text" id="ssn" value="">'+
-    '<label>Number of cores (optional)</label><input type="number" id="ssc" min="1" max="30" value="" placeholder="Leave blank if not decided yet">'+
-    '<label>Depth</label><select id="ssd"><option value="">Not recorded</option>'+['0–6 in','6–12 in','12–24 in','0–12 in','0–24 in'].map(d=>'<option'+(S.lastDepth===d?' selected':'')+'>'+d+'</option>').join('')+'</select>'+
-    '<label>Date</label><input type="date" id="ssdt" value="'+today()+'">'+
-    '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="setStart()">Start sampling</button></div>'+
-    '<div class="btns"><button onclick="soilSingle()">Just drop one point</button></div>';
-  open(h);soilName();
+  const rows=fieldRows(),r=S.round;let h='<h2>Soil sampling</h2>';
+  if(r){const f=S.items.find(x=>x.id===r.fid);h+='<div class="orow"><b>Round in progress: '+esc(r.name)+'</b><div class="small">'+rDone()+' of '+r.spots.length+' spots sampled</div><div class="two" style="margin-top:6px"><button class="go" onclick="roundResume()">Continue</button><button class="no" onclick="roundCancel()">Cancel round</button></div></div>'}
+  h+='<label>Field</label><select id="ssf" onchange="soilField()"><option value="">Pick a field</option>'+rows.map(x=>'<option value="'+x.i.id+'"'+(fid&&members(x.i).some(m=>m.id===fid)?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select><div id="ssi" class="small" style="margin:8px 0"></div>'+
+    '<div class="btns"><button class="go" onclick="roundStart()">Start sampling this field</button></div>'+
+    '<div class="btns"><button onclick="spotsMap()">Add sample spots</button><button onclick="closeSheet()">Cancel</button></div>';
+  open(h);soilField();
 }
-function soilName(){const f=S.items.find(x=>x.id===$('#ssf').value);$('#ssn').value=(f?nameOf(f):'Soil sample')+' '+yrOf({date:$('#ssdt').value||today()})}
-function setStart(){
-  const raw=$('#ssc').value.trim(),n=raw===''?0:Math.round(+raw);if(raw!==''&&!(n>=1&&n<=30)){alert('Enter how many cores (1 to 30), or leave it blank if you have not decided yet.');return}
-  const s={id:uid(),name:$('#ssn').value.trim()||'Soil sample',field:$('#ssf').value,n,depth:$('#ssd').value,date:$('#ssdt').value||today(),done:false};
-  S.sets.push(s);S.curSet=s.id;S.lastDepth=s.depth;save();closeSheet();pinOn();
+function soilField(){
+  const id=$('#ssf').value;if(!id){$('#ssi').textContent='Pick the field you are sampling. Its spots will light up as still to do.';return}
+  const n=spotsOf(id).length,f=S.items.find(x=>x.id===id),mm=members(f),last=S.rounds.filter(x=>mm.some(m=>m.id===x.fid)).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  $('#ssi').innerHTML=(n?n+(n===1?' spot':' spots')+' mapped in this field.':'No spots mapped in this field yet. Tap Add sample spots and drop them where you want to sample.')+(last?'<br>Last sampled '+dlabel(last.date)+'.':'');
 }
-function soilSingle(){S.curSet='';closeSheet();pinOn()}
-function resumeSet(id){S.curSet=id;closeSheet();pinOn()}
-function finishSet(id){const s=S.sets.find(x=>x.id===id);if(!s)return;if(!coresOf(s)){S.sets=S.sets.filter(x=>x.id!==id)}else s.done=true;if(S.curSet===id)S.curSet='';save();soilStart()}
-function coreSheet(cs,pos,acc){
-  $('#pinbar').classList.add('hide');
-  open('<h2>Core '+(coresOf(cs)+1)+(cs.n?' of '+cs.n:'')+'</h2><div class="small">'+esc(cs.name)+(cs.depth?' · '+esc(cs.depth):'')+'<br>'+pos[0].toFixed(5)+', '+pos[1].toFixed(5)+(acc?' (GPS ±'+Math.round(acc)+' m)':' (crosshair)')+'</div>'+
-    '<label>Notes (optional)</label><textarea id="tt" rows="2"></textarea>'+
-    '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveCore('+pos[0]+','+pos[1]+','+(acc||0)+')">Save core</button></div>');
+function spotsMap(){closeSheet();pinOn()}
+function roundStart(){
+  const id=$('#ssf').value;if(!id){alert('Pick the field first.');return}
+  const f=S.items.find(x=>x.id===id),sp=spotsOf(id);
+  if(!sp.length){alert('This field has no sample spots yet. Tap Add sample spots first.');return}
+  if(S.round&&!confirm('A round is already in progress. Start a new one and drop the old one?'))return;
+  S.round={fid:id,name:nameOf(f),spots:sp.map(x=>x.id),done:{},date:today()};save();closeSheet();
+  const pts=[];members(f).forEach(m=>m.pts.forEach(q=>pts.push(q)));map.fitBounds(L.latLngBounds(pts),{padding:[40,40],maxZoom:18});
+  redraw();roundOn();
 }
-function saveCore(a,b,acc){
-  const cs=curSetObj();if(!cs){closeSheet();return}
-  const nb=nearPt([a,b],cs.date);if(nb&&!confirm(nearMsg(nb)))return;
-  const k=coresOf(cs)+1,lid=S.layers.some(l=>l.id===S.ptLayer)?S.ptLayer:S.active;
-  S.items.push({id:uid(),type:'pt',layer:lid,name:cs.name+' – core '+k,set:cs.id,core:k,pos:[a,b],acc:acc||null,depth:cs.depth,date:cs.date,note:$('#tt').value.trim(),photos:[],t:Date.now()});
-  if(cs.n&&k>=cs.n){cs.done=true;S.curSet='';save();closeSheet();redraw();endPin();alert('All '+cs.n+' cores taken. '+cs.name+' is complete and ready to mix and send.');return}
-  save();closeSheet();redraw();pinInfo();
+function roundOn(){
+  let l=S.layers.find(x=>x.name==='Soil samples');if(l)l.visible=true;redraw();
+  pin=true;$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#pinbar').classList.add('round');document.body.classList.add('rnd');$('#xh').classList.add('hide');
+  if(!watching)startGps();roundInfo();clearInterval(rTimer);rTimer=setInterval(roundInfo,2000);
 }
+function roundResume(){closeSheet();roundOn()}
+function roundCancel(){if(!confirm('Cancel this round? The spots go back to normal and nothing is recorded.'))return;S.round=null;save();if(pin)endPin();redraw();soilStart()}
+function roundMark(id,on){
+  const r=S.round;if(!r)return;
+  if(on)r.done[id]=today();else delete r.done[id];
+  save();map.closePopup();redraw();
+  if(r.spots.every(x=>r.done[x])){
+    r.spots.forEach(x=>{const i=S.items.find(y=>y.id===x);if(i)i.samples=(i.samples||[]).concat(r.done[x])});
+    S.rounds.push({id:uid(),fid:r.fid,fname:r.name,date:r.date,n:r.spots.length});
+    S.round=null;save();redraw();endPin();alert('All points sampled. '+r.name+' is done.');return;
+  }
+  roundInfo();
+}
+function roundMarkNearest(){
+  if(!S.round)return;
+  if(!gps){alert('Still waiting for a GPS fix. You can also tap a spot on the map and choose Mark sampled.');return}
+  const nx=nearestTodo();if(!nx)return;
+  if(nx.d>40&&!confirm('The nearest spot still to do is '+Math.round(nx.d)+' m away ('+(nx.i.name||'spot')+'). Mark it as sampled anyway?'))return;
+  roundMark(nx.i.id,true);
+}
+$('#rMark').onclick=roundMarkNearest;
 
 /* tap overlapping areas: list them all */
 function ptIn(p,q){let c=false;for(let i=0,j=p.length-1;i<p.length;j=i++){if((p[i][0]>q[0])!==(p[j][0]>q[0])&&q[1]<(p[j][1]-p[i][1])*(q[0]-p[i][0])/(p[j][0]-p[i][0])+p[i][1])c=!c}return c}
@@ -788,7 +818,7 @@ function fieldSheet(id){
   (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
   (f.note?'<div class="notebox">'+esc(f.note)+'</div>':'')+
   '<div class="pop" style="margin-top:6px">'+polyInfo(f)+'</div>'+
-  (()=>{const ss=S.sets.filter(x=>mm.some(m=>m.id===x.field)&&yrOf({date:x.date})===+cropYear());return ss.length?'<h3>Soil samples</h3>'+ss.map(x=>'<div class="orow"'+(x.done?'':' onclick="resumeSet(\''+x.id+'\')"')+'><b>'+esc(x.name)+'</b><div class="small">'+(x.done?'✓ '+coresOf(x)+' cores · '+dlabel(x.date):coresOf(x)+(x.n?' of '+x.n:'')+' cores · tap to continue')+'</div></div>').join(''):''})()+
+  (()=>{const sp=spotsOf(id).length,rs=S.round&&mm.some(m=>m.id===S.round.fid),last=S.rounds.filter(x=>mm.some(m=>m.id===x.fid)).sort((a,b)=>b.date.localeCompare(a.date))[0];return sp||rs?'<h3>Soil sampling</h3><div class="orow"'+(rs?' onclick="roundResume()"':' onclick="soilStart(\''+id+'\')"')+'><b>'+sp+(sp===1?' spot':' spots')+' mapped</b><div class="small">'+(rs?'Round in progress: '+rDone()+' of '+S.round.spots.length+' sampled · tap to continue':last?'Last sampled '+dlabel(last.date):'Not sampled yet · tap to start')+'</div></div>':''})()+
   '<h3>Recent observations</h3>'+
   (obs.length?obs.map(i=>'<div class="orow" onclick="goObs(\''+i.id+'\')"><b>'+esc(obsLine1(i))+'</b><div class="small">'+dlabel(dkey(i))+((i.photos||[]).length?' · Photo':'')+(i.crop?' · '+esc(i.crop):'')+'</div></div>').join(''):'<div class="small">Nothing scouted in this field yet.</div>')+
   '<div class="two" style="margin-top:12px"><button onclick="fieldGo(\'edit\',\''+id+'\')">Edit corners</button><button onclick="fieldGo(\'cut\',\''+id+'\')">Cut out</button><button onclick="fieldGo(\'copy\',\''+id+'\')">Copy</button></div>'+
