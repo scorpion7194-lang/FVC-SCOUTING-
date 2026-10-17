@@ -154,6 +154,12 @@ body.rnd .lbl{display:none}
 #pinbar:not(.round) #rMark{display:none}#pinbar.round #pGps,#pinbar.round #pDrop{display:none}
 .pin.todo{background:#ff7a00!important;border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 6px rgba(255,122,0,.55);animation:tdp 1.3s infinite}
 @keyframes tdp{50%{box-shadow:0 0 0 2px #000,0 0 0 12px rgba(255,122,0,0)}}
+.npin{width:26px;height:26px;border-radius:50%;background:#0c1c27;border:2px solid #4fd1ff;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 0 2px #000}
+.nrow{border-top:1px solid rgba(79,209,255,.3);padding:10px 0}.nrow .nd{font-weight:700;color:#4fd1ff}.nrow .nt{white-space:pre-wrap;margin-top:2px}.nrow img{width:64px;height:64px;object-fit:cover;border-radius:6px;margin:6px 6px 0 0}
+.nph{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0}.nph div{width:92px}.nph img{width:92px;height:92px;object-fit:cover;border-radius:8px;display:block}.nph button{width:100%;min-height:34px!important;margin-top:4px;font-size:13px}
+.catgrid{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.sheet .catgrid button{min-height:52px;padding:0 4px}
+.sheet .seg button.on{background:#4fd1ff;color:#06222e;border-color:#4fd1ff}
 </style>
 </head>
 <body>
@@ -173,6 +179,7 @@ body.rnd .lbl{display:none}
     <button data-go="draw"><svg viewBox="0 0 24 24"><path d="M5 8l6-4 8 4 1 8-8 4-7-5z"/></svg><b>Draw / Measure</b><span>Fields, patches, manure</span></button>
     <button data-go="obs"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg><b>Observations</b><span>Everything you scouted</span></button>
     <button data-go="fields"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg><b>Field Records</b><span>Crop, acres, history</span></button>
+    <button data-go="notes" id="tNotes" class="wide"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><b>Notes</b><span id="tNoteSub">Dated notes for every field</span></button>
   </div>
   <button class="hlink" data-go="layers">Layers, backup and restore</button>
   <div class="hnote">Everything is saved on this phone. Back up now and then.</div>
@@ -297,7 +304,9 @@ function refreshYears(){
   $('#yr').value=YR;
 }
 $('#yr').onchange=()=>{YR=$('#yr').value;redraw()};
-function migrate(){S.tasks=S.tasks||[];S.sets=S.sets||[];S.rounds=S.rounds||[];if(S.round===undefined)S.round=null;S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())})}
+function migrate(){S.notes=S.notes||[];S.tasks=S.tasks||[];S.sets=S.sets||[];S.rounds=S.rounds||[];if(S.round===undefined)S.round=null;S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())});
+  /* old single field note -> first entry in the new notes list */
+  S.items.forEach(i=>{if(i.type==='poly'&&!i.noteMig){const l=S.layers.find(x=>x.id===i.layer);if(l&&l.always){if(i.note&&String(i.note).trim())S.notes.push({id:uid(),field:i.id,date:i.date||new Date(i.t||Date.now()).toISOString().slice(0,10),type:'Other',text:String(i.note).trim(),photos:[],pos:null,t:i.t||Date.now()});i.note='';i.noteMig=true}}})}
 const CROPC={wheat:'#d64545',barley:'#43a047',canola:'#f2c94c',oats:'#fb8c00',peas:'#26a69a',silage:'#8e24aa',hay:'#1e88e5',alfalfa:'#1e88e5',fallow:'#9e9e9e',flax:'#5c6bc0',corn:'#cddc39',lentil:'#a1887f'};
 function cropColor(c){const k=c.toLowerCase().trim();if(S.cropColors&&S.cropColors[k])return S.cropColors[k];for(const n in CROPC)if(k.includes(n))return CROPC[n];let h=0;for(const ch of k)h=(h*31+ch.charCodeAt(0))%360;return 'hsl('+h+',55%,45%)'}
 const DEFCROPS=['Wheat','Barley','Canola','Oats','Peas','Silage','Hay','Fallow','Flax','Lentils'];
@@ -341,6 +350,7 @@ function redraw(){
     mk.on('click',()=>map.fitBounds(L.latLngBounds(c.map(p=>p.i.pos)),{padding:[70,70],maxZoom:19}));
   });
   $('#legend').innerHTML=Object.keys(used).sort().map(c=>'<div><i style="background:'+used[c]+'"></i><span>'+esc(c)+'</span><b>'+(tot[c]/4046.856).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1})+' ac</b></div>').join('');
+  drawNotes();
 }
 function pop(i,l){
   let h='<div class="pop"><b>'+esc(i.type==='obs'?obsLine1(i):(i.name||i.stage||'Note'))+'</b><div class="small">'+esc(l.name)+' · '+(i.type==='obs'&&(i.date||i.t)?dlabel(dkey(i)):new Date(i.t).toLocaleString())+'</div>';
@@ -447,8 +457,8 @@ function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=
   const fld=it.type==='poly'&&l.always;
   const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+'<label>Seeded date for '+detYr+'</label><input type="date" id="dsd" value="'+esc((it.seeded||{})[detYr]||'')+'">'+
     '<label>Group name (fields farmed as one)</label><input type="text" id="dg" list="grpl" value="'+esc(it.group||'')+'" placeholder="e.g. Kersey 640"><datalist id="grpl">'+groups.map(g=>'<option>'+esc(g)+'</option>').join('')+'</datalist><div class="small">Give separate fields the same group name and they are labelled, cropped and tracked as one field. Leave empty if it stands alone.</div>':'';
-  open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'"><label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea><div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
-function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;it.note=$('#dt').value.trim();
+  open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'">'+(fld?'':'<label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea>')+'<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
+function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;if($('#dt'))it.note=$('#dt').value.trim();
   if($('#dg')){const g=$('#dg').value.trim();if(g)it.group=g;else delete it.group}
   if($('#dc')){it.crops=it.crops||{};const prev=it.crops[detYr],c=$('#dc').value.trim(),mem=it.group?S.items.filter(x=>x.type==='poly'&&x.group===it.group):[it];
     if(c)mem.forEach(x=>{x.crops=x.crops||{};x.crops[detYr]=c});
@@ -630,7 +640,7 @@ function obsDetails(id){
   open('<h2>'+esc(obsLine1(it))+'</h2><div class="small">'+dlabel(dkey(it))+' · '+it.pos[0].toFixed(5)+', '+it.pos[1].toFixed(5)+(it.acc?' (GPS ±'+Math.round(it.acc)+' m)':'')+'</div>'+
   '<div class="small">Tap a photo to see it full size.</div><div id="xp"></div>'+
   '<label>Add photos</label><input type="file" id="xf" accept="image/*" capture="environment" multiple>'+
-  '<label>What are you seeing?</label><select id="xk"><option value="">Not set</option>'+CATS.map(c=>'<option value="'+c.k+'">'+c.e+' '+c.n+'</option>').join('')+'</select>'+
+  '<label>What are you seeing?</label><select id="xk"><option value="">Not set</option>'+CATSA.map(c=>'<option value="'+c.k+'">'+c.n+'</option>').join('')+'</select>'+
   '<label>Severity</label><select id="xv"><option value="">Not set</option>'+SEV.map(v=>'<option>'+v+'</option>').join('')+'</select>'+
   '<label>What exactly</label><input type="text" id="xw" value="'+esc(it.what||'')+'" placeholder="e.g. Wild oats">'+
   '<label>Layer</label><select id="xl">'+layerOpts(it.layer)+'</select>'+
@@ -712,8 +722,9 @@ const CATS=[
  {k:'moisture',n:'Moisture',e:'💧',c:'#00a3b8',ex:['Dry','Wet','Flooded','Hail','Frost']},
  {k:'other',n:'Other',e:'⋯',c:'#7d7d7d',ex:[]}];
 const SEV=['Low','Medium','High'];
+const CATSA=CATS.slice().sort((a,b)=>a.n.localeCompare(b.n));
 const catOf=k=>CATS.find(c=>c.k===k);
-function obsLine1(i){const c=catOf(i.cat);return (c?c.e+' ':'')+(i.what||(c?c.n:'')||i.stage||i.crop||'Observation')+(i.sev?' – '+i.sev.toLowerCase():'')}
+function obsLine1(i){const c=catOf(i.cat);return (i.what||(c?c.n:'')||i.stage||i.crop||'Observation')+(i.sev?' – '+i.sev.toLowerCase():'')}
 function obsLine(i){const c=catOf(i.cat);return [c?obsLine1(i):'',i.crop,i.stage].filter(Boolean).join(', ')}
 function layerForCat(c){
   let l=S.layers.find(x=>(x.name||'').trim().toLowerCase()===c.n.toLowerCase());
@@ -755,7 +766,7 @@ function scCapture(){
 }
 function scoutRender(){
   open('<h2>What are you seeing?</h2><div class="small" id="scfld"></div>'+
-  '<div class="tiles" id="sctiles">'+CATS.map(c=>'<button data-k="'+c.k+'" style="background:'+c.c+'" onclick="scPick(\''+c.k+'\')"><span class="e">'+c.e+'</span>'+c.n+'</button>').join('')+'</div>'+
+  '<div class="catgrid seg" id="sctiles">'+CATSA.map(c=>'<button data-k="'+c.k+'" onclick="scPick(\''+c.k+'\')">'+c.n+'</button>').join('')+'</div>'+
   '<label>Severity</label><div class="seg" id="scsev">'+SEV.map(v=>'<button data-v="'+v+'" onclick="scSev(\''+v+'\')">'+v+'</button>').join('')+'</div>'+
   '<label>What exactly? (optional)</label><input type="text" id="scw" list="scl" value="'+esc(sc.what)+'" placeholder="e.g. Wild oats"><datalist id="scl"></datalist>'+
   '<label>Crop</label><input type="text" id="scc" list="cropl" value="'+esc(sc.crop)+'" placeholder="e.g. Wheat"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist>'+
@@ -814,9 +825,9 @@ function fieldSheet(id){
   const obs=S.items.filter(i=>i.type==='obs'&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(b).localeCompare(dkey(a))).slice(0,5);
   open('<h2 style="margin:0">'+esc(f.group||f.name)+'</h2>'+
   '<div class="small">'+(crop?esc(crop)+' ('+yr+') · ':'')+acOf(total)+' ac'+(mm.length>1?' · '+mm.length+' parts':'')+(seeded?' · seeded '+dlabel(seeded):'')+'</div>'+
-  '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="detailsSheet(\''+id+'\')">FIELD NOTES</button><button style="grid-column:1/-1" onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
+  '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="notesSheet(\''+id+'\')">NOTES'+(fieldNotes(f).length?' ('+fieldNotes(f).length+')':'')+'</button><button onclick="detailsSheet(\''+id+'\')">DETAILS</button><button onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
+  (fieldNotes(f).length?'<h3>Latest notes</h3>'+fieldNotes(f).slice(0,2).map(n=>noteRow(n,false,false)).join('')+(fieldNotes(f).length>2?'<div class="small" style="padding:6px 0" onclick="notesSheet(\''+id+'\')">Tap NOTES to see all '+fieldNotes(f).length+'</div>':''):'')+
   (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
-  (f.note?'<div class="notebox">'+esc(f.note)+'</div>':'')+
   '<div class="pop" style="margin-top:6px">'+polyInfo(f)+'</div>'+
   (()=>{const sp=spotsOf(id).length,rs=S.round&&mm.some(m=>m.id===S.round.fid),last=S.rounds.filter(x=>mm.some(m=>m.id===x.fid)).sort((a,b)=>b.date.localeCompare(a.date))[0];return sp||rs?'<h3>Soil sampling</h3><div class="orow"'+(rs?' onclick="roundResume()"':' onclick="soilStart(\''+id+'\')"')+'><b>'+sp+(sp===1?' spot':' spots')+' mapped</b><div class="small">'+(rs?'Round in progress: '+rDone()+' of '+S.round.spots.length+' sampled · tap to continue':last?'Last sampled '+dlabel(last.date):'Not sampled yet · tap to start')+'</div></div>':''})()+
   '<h3>Recent observations</h3>'+
@@ -860,10 +871,11 @@ function showHome(){
   $('#hstats').innerHTML=stat(keys.size,'Fields')+stat(crops.size,'Crop types in '+yr)+stat(done.size,'Fields scouted in 30 days');
   const dc=dueCount(),oc=S.tasks.filter(t=>!t.done).length,tt=$('#tTasks');
   tt.classList.toggle('due',dc>0);$('#tTaskSub').textContent=dc?dc+(dc===1?' task due now':' tasks due now'):oc?oc+' coming up':'Nothing due';
+  const nc=(S.notes||[]).length;$('#tNoteSub').textContent=nc?nc+(nc===1?' note':' notes')+' across your fields':'Dated notes for every field';
   $('#home').classList.remove('hide');
 }
 function hideHome(){$('#home').classList.add('hide')}
-const HGO={map:()=>{},scout:()=>scoutStart(),soil:()=>$('#bPt').click(),draw:()=>$('#bDraw').click(),obs:()=>obsListSheet(),fields:()=>fieldsSheet(),layers:()=>layersSheet(),tasks:()=>{tkHome=true;tasksSheet()}};
+const HGO={map:()=>{},scout:()=>scoutStart(),soil:()=>$('#bPt').click(),draw:()=>$('#bDraw').click(),obs:()=>obsListSheet(),fields:()=>fieldsSheet(),layers:()=>layersSheet(),tasks:()=>{tkHome=true;tasksSheet()},notes:()=>notesAllSheet()};
 document.querySelectorAll('#home [data-go]').forEach(b=>b.onclick=()=>{hideHome();HGO[b.dataset.go]()});
 $('#fabH').onclick=()=>{if(draw||edit||pin||locMode)return;closeSheet();map.closePopup();showHome()};
 
@@ -944,6 +956,87 @@ function exportData(){
 function zoomAll(){
   const ll=[];S.items.forEach(i=>{(i.type==='poly'?i.pts:[i.pos]).forEach(q=>ll.push(q))});
   if(ll.length)map.fitBounds(L.latLngBounds(ll),{padding:[40,40],maxZoom:17});
+}
+
+/* ===== notes: dated, typed notes per field, with photos, optional map pin and reminder ===== */
+const NTYPES=['Weeds','Seeding','Spraying','Harvest','Fertilizer','Other'];
+const NICON={Weeds:'🌿',Seeding:'🌱',Spraying:'💧',Harvest:'🌾',Fertilizer:'🧪',Other:'📝'};
+let nt={fid:'',id:'',type:'Other',photos:[],pin:false,rem:0,home:false,flt:'All'};
+const nsort=(a,b)=>(b.date||'').localeCompare(a.date||'')||(b.t||0)-(a.t||0);
+function fieldNotes(f){const ids=new Set(members(f).map(m=>m.id));return (S.notes||[]).filter(n=>ids.has(n.field)).sort(nsort)}
+function noteRow(n,showField,home){
+  const f=S.items.find(x=>x.id===n.field);
+  return '<div class="nrow" onclick="noteOpen(\''+n.field+'\',\''+n.id+'\','+(home?'true':'false')+')"><span class="nd">'+esc(n.date?dlabel(n.date):'')+'</span> <span class="small">'+(NICON[n.type]||'')+' '+esc(n.type)+(showField?' · '+esc(f?nameOf(f):'(deleted field)'):'')+(n.pos?' · 📍':'')+'</span>'+
+    (n.text?'<div class="nt">'+esc(n.text)+'</div>':'')+(n.photos||[]).map(p=>'<img src="'+p+'">').join('')+'</div>';
+}
+function noteChips(all,cur,fn){
+  const types=NTYPES.filter(t=>all.some(n=>n.type===t));if(types.length<2)return '';
+  return '<div class="chips">'+['All'].concat(types).map(t=>'<button class="'+(t===cur?'go':'')+'" onclick="'+fn(t)+'">'+(t==='All'?'All':(NICON[t]+' '+t))+'</button>').join('')+'</div>';
+}
+function notesSheet(fid,flt){
+  const f=S.items.find(x=>x.id===fid);if(!f)return;
+  nt.home=false;nt.fid=fid;nt.flt=flt||'All';
+  const all=fieldNotes(f),list=nt.flt==='All'?all:all.filter(n=>n.type===nt.flt),yr=cropYear(),crop=(f.crops||{})[yr];
+  open('<h2 style="margin:0">'+esc(nameOf(f))+' · Notes</h2><div class="small">'+(crop?esc(crop)+' ('+yr+') · ':'')+all.length+(all.length===1?' note':' notes')+'</div>'+
+    noteChips(all,nt.flt,t=>"notesSheet('"+fid+"','"+t+"')")+
+    '<button class="go" style="width:100%;margin:8px 0" onclick="noteForm(\''+fid+'\')">+ ADD NOTE</button>'+
+    (list.length?list.map(n=>noteRow(n,false,false)).join(''):'<div class="small">'+(all.length?'No notes of this type.':'No notes yet. Tap + ADD NOTE.')+'</div>')+
+    '<div class="btns"><button class="go" onclick="fieldSheet(\''+fid+'\')">Back</button></div>');
+}
+function notesAllSheet(flt){
+  nt.home=true;nt.flt=flt||'All';
+  const all=(S.notes||[]).slice().sort(nsort),list=(nt.flt==='All'?all:all.filter(n=>n.type===nt.flt)).slice(0,60);
+  open('<h2 style="margin:0">Notes · all fields</h2><div class="small">'+all.length+(all.length===1?' note':' notes')+(all.length>60&&nt.flt==='All'?' · newest 60 shown':'')+'</div>'+
+    noteChips(all,nt.flt,t=>"notesAllSheet('"+t+"')")+
+    '<button class="go" style="width:100%;margin:8px 0" onclick="noteForm(\'\')">+ ADD NOTE</button>'+
+    (list.length?list.map(n=>noteRow(n,true,true)).join(''):'<div class="small">'+(all.length?'No notes of this type.':'No notes yet. Tap + ADD NOTE and pick a field.')+'</div>')+
+    '<div class="btns"><button class="go" onclick="closeSheet();showHome()">Close</button></div>');
+}
+function noteOpen(fid,id,home){nt.home=!!home;noteForm(fid,id)}
+function noteForm(fid,id){
+  const n=id?S.notes.find(x=>x.id===id):null;
+  nt.fid=fid||'';nt.id=id||'';nt.photos=n?(n.photos||[]).slice():[];nt.type=n?n.type:'Other';nt.pin=n?!!n.pos:false;nt.rem=0;
+  const rows=fieldRows(),sel=n?n.field:fid;
+  open('<h2 style="margin:0">'+(n?'Edit note':'New note')+'</h2>'+
+    '<label>Field</label><select id="ntfld"><option value="">Pick a field…</option>'+rows.map(r=>'<option value="'+r.i.id+'"'+(members(r.i).some(m=>m.id===sel)?' selected':'')+'>'+esc(r.name)+'</option>').join('')+'</select>'+
+    '<label>Date</label><input type="date" id="ntd" value="'+esc(n&&n.date?n.date:today())+'">'+
+    '<label>Type</label><div class="chips" id="ntt">'+NTYPES.map(t=>'<button data-t="'+t+'" class="'+(t===nt.type?'go':'')+'" onclick="ntType(\''+t+'\')">'+NICON[t]+' '+t+'</button>').join('')+'</div>'+
+    '<label>Note</label><textarea id="ntx" rows="5" placeholder="What you did or saw…">'+esc(n?n.text:'')+'</textarea>'+
+    '<label>Photos</label><div class="nph" id="ntp"></div><input type="file" id="ntf" accept="image/*" multiple onchange="ntAddPics(this)">'+
+    '<label>Map pin</label><div class="chips"><button id="ntpin" onclick="ntPin()"></button></div>'+
+    (n?'':'<label>Remind me</label><div class="chips" id="ntr">'+[[0,'No'],[3,'3 days'],[7,'1 week'],[10,'10 days'],[14,'2 weeks']].map(c=>'<button data-k="'+c[0]+'" class="'+(c[0]===0?'go':'')+'" onclick="ntRem('+c[0]+')">'+c[1]+'</button>').join('')+'</div>')+
+    '<div class="btns">'+(n?'<button class="no" onclick="noteDel()">Delete</button>':'')+'<button onclick="noteBack()">Cancel</button><button class="go" id="ntsv" onclick="noteSave()">Save</button></div>');
+  ntPics();ntPinLbl();
+}
+function ntType(t){nt.type=t;document.querySelectorAll('#ntt button').forEach(b=>b.classList.toggle('go',b.dataset.t===t))}
+function ntRem(k){nt.rem=k;document.querySelectorAll('#ntr button').forEach(b=>b.classList.toggle('go',+b.dataset.k===k))}
+function ntPics(){$('#ntp').innerHTML=nt.photos.map((p,k)=>'<div><img data-zoom="1" src="'+p+'"><button class="no" onclick="ntRm('+k+')">Remove</button></div>').join('')}
+function ntRm(k){nt.photos.splice(k,1);ntPics()}
+async function ntAddPics(inp){for(const f of inp.files){const d=await shrink(f);if(d)nt.photos.push(d)}inp.value='';ntPics()}
+function ntPin(){nt.pin=!nt.pin;ntPinLbl()}
+function ntPinLbl(){$('#ntpin').textContent=nt.pin?'📍 Pin on map: ON (tap to remove)':'📍 Pin on map here';$('#ntpin').classList.toggle('go',nt.pin)}
+function noteBack(){if(nt.home)notesAllSheet(nt.flt);else if(nt.fid&&S.items.some(x=>x.id===nt.fid))notesSheet(nt.fid,nt.flt);else notesAllSheet()}
+function noteSave(){
+  const fid=$('#ntfld').value;if(!fid){alert('Pick the field this note is for.');return}
+  const f=S.items.find(x=>x.id===fid),text=$('#ntx').value.trim();
+  if(!text&&!nt.photos.length){alert('Write a note or add a photo.');return}
+  let n=nt.id&&S.notes.find(x=>x.id===nt.id);
+  if(!n){n={id:uid(),t:Date.now()};S.notes.push(n)}
+  const c=map.getCenter();
+  Object.assign(n,{field:fid,date:$('#ntd').value||today(),type:nt.type,text,photos:nt.photos.slice(),pos:nt.pin?(n.pos||(gps?[gps.lat,gps.lng]:[c.lat,c.lng])):null});
+  if(!nt.id&&nt.rem>0)S.tasks.push({id:uid(),created:today(),done:false,title:nt.type+': '+(text.split('\n')[0].slice(0,40)||'check field'),due:addDays(nt.rem),field:fid,fname:f?nameOf(f):'',note:''});
+  nt.fid=fid;nt.id=n.id;save();drawNotes();noteBack();
+}
+function noteDel(){if(!confirm('Delete this note?'))return;S.notes=S.notes.filter(x=>x.id!==nt.id);save();drawNotes();noteBack()}
+/* note pins on the map (follow the year box like other layers) */
+const NG=L.layerGroup().addTo(map);
+function drawNotes(){
+  NG.clearLayers();
+  (S.notes||[]).forEach(n=>{
+    if(!n.pos)return;if(YR!=='all'&&n.date&&+n.date.slice(0,4)!==+YR)return;
+    L.marker(n.pos,{icon:L.divIcon({className:'',html:'<div class="npin">'+(NICON[n.type]||'📝')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(NG)
+     .on('click',()=>{if(draw||edit||pin||locMode)return;closeSheet();hideHome();noteOpen(n.field,n.id,false)});
+  });
 }
 load().then(d=>{if(d)S=d;migrate();redraw();zoomAll();showHome()});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
