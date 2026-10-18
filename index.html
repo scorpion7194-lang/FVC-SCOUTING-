@@ -160,6 +160,13 @@ body.rnd .lbl{display:none}
 .catgrid{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
 .sheet .catgrid button{min-height:52px;padding:0 4px}
 .sheet .seg button.on{background:#4fd1ff;color:#06222e;border-color:#4fd1ff}
+.pit{display:flex;gap:8px;align-items:flex-start;border-top:1px solid rgba(79,209,255,.3);padding:10px 0}
+.pit .pb{flex:1;min-width:0}.pit .pt{font-weight:700;color:#4fd1ff}.pit .pn{white-space:pre-wrap;margin-top:2px;font-size:14px}
+.pit.done .pt,.pit.done .pn{opacity:.55;text-decoration:line-through}
+.sheet .pit button{flex:none;min-height:36px;width:36px;padding:0;font-size:16px}
+.sheet .pit .mvs{display:flex;flex-direction:column;gap:4px}
+.sheet .pit button.ck.on{background:#4fd1ff;color:#06222e;border-color:#4fd1ff}
+.pg{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9fdcf5;margin:14px 0 0}
 </style>
 </head>
 <body>
@@ -179,7 +186,8 @@ body.rnd .lbl{display:none}
     <button data-go="draw"><svg viewBox="0 0 24 24"><path d="M5 8l6-4 8 4 1 8-8 4-7-5z"/></svg><b>Draw / Measure</b><span>Fields, patches, manure</span></button>
     <button data-go="obs"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg><b>Observations</b><span>Everything you scouted</span></button>
     <button data-go="fields"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg><b>Field Records</b><span>Crop, acres, history</span></button>
-    <button data-go="notes" id="tNotes" class="wide"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><b>Notes</b><span id="tNoteSub">Dated notes for every field</span></button>
+    <button data-go="notes" id="tNotes"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><b>Notes</b><span id="tNoteSub">Dated notes for every field</span></button>
+    <button data-go="plan" id="tPlan"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 5v14"/></svg><b>Plan</b><span id="tPlanSub">Next year's crops and order of work</span></button>
   </div>
   <button class="hlink" data-go="layers">Layers, backup and restore</button>
   <div class="hnote">Everything is saved on this phone. Back up now and then.</div>
@@ -304,7 +312,7 @@ function refreshYears(){
   $('#yr').value=YR;
 }
 $('#yr').onchange=()=>{YR=$('#yr').value;redraw()};
-function migrate(){S.notes=S.notes||[];S.tasks=S.tasks||[];S.sets=S.sets||[];S.rounds=S.rounds||[];if(S.round===undefined)S.round=null;S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())});
+function migrate(){S.notes=S.notes||[];S.fplan=S.fplan||{};S.fplan.groups=S.fplan.groups&&S.fplan.groups.length?S.fplan.groups:['Canola','Wheat','Barley','Spraying','Other'];S.fplan.items=S.fplan.items||[];S.fplan.years=S.fplan.years||[];S.tasks=S.tasks||[];S.sets=S.sets||[];S.rounds=S.rounds||[];if(S.round===undefined)S.round=null;S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())});
   /* old single field note -> first entry in the new notes list */
   S.items.forEach(i=>{if(i.type==='poly'&&!i.noteMig){const l=S.layers.find(x=>x.id===i.layer);if(l&&l.always){if(i.note&&String(i.note).trim())S.notes.push({id:uid(),field:i.id,date:i.date||new Date(i.t||Date.now()).toISOString().slice(0,10),type:'Other',text:String(i.note).trim(),photos:[],pos:null,t:i.t||Date.now()});i.note='';i.noteMig=true}}})}
 const CROPC={wheat:'#d64545',barley:'#43a047',canola:'#f2c94c',oats:'#fb8c00',peas:'#26a69a',silage:'#8e24aa',hay:'#1e88e5',alfalfa:'#1e88e5',fallow:'#9e9e9e',flax:'#5c6bc0',corn:'#cddc39',lentil:'#a1887f'};
@@ -826,7 +834,7 @@ function fieldSheet(id){
   open('<h2 style="margin:0">'+esc(f.group||f.name)+'</h2>'+
   '<div class="small">'+(crop?esc(crop)+' ('+yr+') · ':'')+acOf(total)+' ac'+(mm.length>1?' · '+mm.length+' parts':'')+(seeded?' · seeded '+dlabel(seeded):'')+'</div>'+
   '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="notesSheet(\''+id+'\')">NOTES'+(fieldNotes(f).length?' ('+fieldNotes(f).length+')':'')+'</button><button onclick="detailsSheet(\''+id+'\')">DETAILS</button><button onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
-  (fieldNotes(f).length?'<h3>Latest notes</h3>'+fieldNotes(f).slice(0,2).map(n=>noteRow(n,false,false)).join('')+(fieldNotes(f).length>2?'<div class="small" style="padding:6px 0" onclick="notesSheet(\''+id+'\')">Tap NOTES to see all '+fieldNotes(f).length+'</div>':''):'')+
+  (fieldNotes(f).length?'<h3>Latest notes</h3>'+fieldNotes(f).slice(0,2).map(n=>noteRow(n,false,false)).join('')+(fieldNotes(f).length>2?'<div class="small" style="padding:6px 0" onclick="notesSheet(\''+id+'\')">Tap NOTES to see all '+fieldNotes(f).length+'</div>':''):'')+planFieldHtml(f)+
   (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
   '<div class="pop" style="margin-top:6px">'+polyInfo(f)+'</div>'+
   (()=>{const sp=spotsOf(id).length,rs=S.round&&mm.some(m=>m.id===S.round.fid),last=S.rounds.filter(x=>mm.some(m=>m.id===x.fid)).sort((a,b)=>b.date.localeCompare(a.date))[0];return sp||rs?'<h3>Soil sampling</h3><div class="orow"'+(rs?' onclick="roundResume()"':' onclick="soilStart(\''+id+'\')"')+'><b>'+sp+(sp===1?' spot':' spots')+' mapped</b><div class="small">'+(rs?'Round in progress: '+rDone()+' of '+S.round.spots.length+' sampled · tap to continue':last?'Last sampled '+dlabel(last.date):'Not sampled yet · tap to start')+'</div></div>':''})()+
@@ -872,10 +880,11 @@ function showHome(){
   const dc=dueCount(),oc=S.tasks.filter(t=>!t.done).length,tt=$('#tTasks');
   tt.classList.toggle('due',dc>0);$('#tTaskSub').textContent=dc?dc+(dc===1?' task due now':' tasks due now'):oc?oc+' coming up':'Nothing due';
   const nc=(S.notes||[]).length;$('#tNoteSub').textContent=nc?nc+(nc===1?' note':' notes')+' across your fields':'Dated notes for every field';
+  {const y=String(planDefYear()),its=S.fplan.items.filter(i=>i.y===y);$('#tPlanSub').textContent=its.length?y+' · '+its.filter(i=>i.done).length+' of '+its.length+' done':'Next year\'s crops and order of work'}
   $('#home').classList.remove('hide');
 }
 function hideHome(){$('#home').classList.add('hide')}
-const HGO={map:()=>{},scout:()=>scoutStart(),soil:()=>$('#bPt').click(),draw:()=>$('#bDraw').click(),obs:()=>obsListSheet(),fields:()=>fieldsSheet(),layers:()=>layersSheet(),tasks:()=>{tkHome=true;tasksSheet()},notes:()=>notesAllSheet()};
+const HGO={map:()=>{},scout:()=>scoutStart(),soil:()=>$('#bPt').click(),draw:()=>$('#bDraw').click(),obs:()=>obsListSheet(),fields:()=>fieldsSheet(),layers:()=>layersSheet(),tasks:()=>{tkHome=true;tasksSheet()},notes:()=>notesAllSheet(),plan:()=>planSheet()};
 document.querySelectorAll('#home [data-go]').forEach(b=>b.onclick=()=>{hideHome();HGO[b.dataset.go]()});
 $('#fabH').onclick=()=>{if(draw||edit||pin||locMode)return;closeSheet();map.closePopup();showHome()};
 
@@ -1037,6 +1046,106 @@ function drawNotes(){
     L.marker(n.pos,{icon:L.divIcon({className:'',html:'<div class="npin">'+(NICON[n.type]||'📝')+'</div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(NG)
      .on('click',()=>{if(draw||edit||pin||locMode)return;closeSheet();hideHome();noteOpen(n.field,n.id,false)});
   });
+}
+
+/* ===== plan: next year's crop plan, items grouped by crop/job, free-text note per item ===== */
+let pl={y:'',id:'',group:'',fields:[],done:false,from:''};
+const planDefYear=()=>{const d=new Date();return d.getMonth()>=7?d.getFullYear()+1:d.getFullYear()};
+function planYears(){const ys=new Set(S.fplan.items.map(i=>i.y).concat(S.fplan.years||[]));ys.add(String(planDefYear()));return [...ys].sort()}
+function planGroupsUsed(y){const g=S.fplan.groups.slice();S.fplan.items.filter(i=>i.y===y).forEach(i=>{if(!g.includes(i.group))g.push(i.group)});return g}
+function planRow(it,first,last){
+  const fl=(it.fields||[]).map(id=>{const f=S.items.find(x=>x.id===id);return f?'<span class="small">'+esc(nameOf(f))+'</span>':''}).filter(Boolean).join(' · ');
+  return '<div class="pit'+(it.done?' done':'')+'"><button class="ck'+(it.done?' on':'')+'" onclick="planTick(\''+it.id+'\')">'+(it.done?'✓':'')+'</button>'+
+    '<div class="pb" onclick="planOpen(\''+it.id+'\')"><div class="pt">'+esc(it.title)+'</div>'+(it.note?'<div class="pn">'+esc(it.note)+'</div>':'')+(fl?'<div>'+fl+'</div>':'')+'</div>'+
+    '<div class="mvs"><button '+(first?'disabled style="opacity:.3"':'')+' onclick="planMove(\''+it.id+'\',-1)">▲</button><button '+(last?'disabled style="opacity:.3"':'')+' onclick="planMove(\''+it.id+'\',1)">▼</button></div></div>';
+}
+function planSheet(y){
+  pl.y=String(y||pl.y||planDefYear());pl.from='';
+  const its=S.fplan.items.filter(i=>i.y===pl.y),yrs=planYears();
+  let body='';
+  planGroupsUsed(pl.y).forEach(g=>{const gi=its.filter(i=>i.group===g);if(!gi.length)return;body+='<div class="pg">'+esc(g)+'</div>'+gi.map((it,k)=>planRow(it,k===0,k===gi.length-1)).join('')});
+  open('<h2 style="margin:0">Plan · '+esc(pl.y)+'</h2><div class="small">'+its.length+(its.length===1?' item':' items')+(its.length?' · '+its.filter(i=>i.done).length+' done':'')+'</div>'+
+    '<div class="chips">'+yrs.map(v=>'<button class="'+(v===pl.y?'go':'')+'" onclick="planSheet(\''+v+'\')">'+v+'</button>').join('')+'<button onclick="planAddYear()">+ Year</button></div>'+
+    '<button class="go" style="width:100%;margin:6px 0" onclick="planForm(\'\')">+ ADD ITEM</button>'+
+    (body||'<div class="small" style="padding:8px 0">Nothing planned for '+esc(pl.y)+' yet. Tap + ADD ITEM.</div>')+
+    '<div class="two" style="margin-top:14px"><button onclick="planCopy()">Copy to '+(+pl.y+1)+'</button><button onclick="planGroupsSheet()">Groups</button></div>'+
+    '<div class="btns"><button class="go" onclick="closeSheet();showHome()">Close</button></div>');
+}
+function planAddYear(){
+  const ys=planYears(),v=prompt('Which year is the plan for?',String(+ys[ys.length-1]+1));if(!v)return;
+  if(!/^20\d\d$/.test(v.trim())){alert('Type a four-digit year, like 2028.');return}
+  if(!S.fplan.years.includes(v.trim()))S.fplan.years.push(v.trim());save();planSheet(v.trim());
+}
+function planTick(id){const it=S.fplan.items.find(x=>x.id===id);if(!it)return;it.done=!it.done;save();if(pl.from)fieldSheet(pl.from);else planSheet(it.y)}
+function planMove(id,d){
+  const it=S.fplan.items.find(x=>x.id===id);if(!it)return;
+  const grp=S.fplan.items.filter(x=>x.y===it.y&&x.group===it.group),k=grp.indexOf(it),o=grp[k+d];if(!o)return;
+  const A=S.fplan.items,a=A.indexOf(it),b=A.indexOf(o);A[a]=o;A[b]=it;save();planSheet(it.y);
+}
+function planOpen(id,fid){pl.from=fid||'';planForm(id)}
+function planGrpChips(){$('#pgc').innerHTML=planGroupsUsed(pl.y).map((g,i)=>'<button class="'+(g===pl.group?'go':'')+'" onclick="planGrp('+i+')">'+esc(g)+'</button>').join('')+'<button onclick="planNewGroup()">+ New</button>'}
+function planGrp(i){pl.group=planGroupsUsed(pl.y)[i];planGrpChips()}
+function planNewGroup(){
+  const n=(prompt('Name of the new group (for example Peas or Fertilizer)')||'').trim();if(!n)return;
+  const ex=planGroupsUsed(pl.y).find(g=>g.toLowerCase()===n.toLowerCase());
+  if(ex)pl.group=ex;else{S.fplan.groups.push(n);pl.group=n;save()}
+  planGrpChips();
+}
+function planFldChips(){const rows=fieldRows();$('#pfc').innerHTML=rows.length?rows.map(r=>'<button class="'+(pl.fields.includes(r.i.id)?'go':'')+'" onclick="planFld(\''+r.i.id+'\')">'+esc(r.name)+'</button>').join(''):'<div class="small">Draw your fields first, then you can tag them here.</div>'}
+function planFld(id){const k=pl.fields.indexOf(id);if(k<0)pl.fields.push(id);else pl.fields.splice(k,1);planFldChips()}
+function planDone(v){pl.done=v;document.querySelectorAll('#pdn button').forEach(b=>b.classList.toggle('go',(b.dataset.v==='1')===v))}
+function planForm(id){
+  const it=id?S.fplan.items.find(x=>x.id===id):null;
+  if(it)pl.y=it.y;
+  pl.id=id||'';pl.group=it?it.group:(pl.group&&planGroupsUsed(pl.y).includes(pl.group)?pl.group:S.fplan.groups[0]);pl.fields=it?(it.fields||[]).slice():[];pl.done=it?!!it.done:false;
+  open('<h2 style="margin:0">'+(it?'Edit item':'New item')+' · '+esc(pl.y)+'</h2>'+
+    '<label>Title</label><input type="text" id="ptl" value="'+esc(it?it.title:'')+'" placeholder="e.g. Spraying order">'+
+    '<label>Group</label><div class="chips" id="pgc"></div>'+
+    '<label>Note</label><textarea id="ptx" rows="6" placeholder="Write the plan in your own words">'+esc(it?it.note:'')+'</textarea>'+
+    '<label>Fields this is about (optional)</label><div class="chips" id="pfc"></div>'+
+    '<label>Done?</label><div class="chips" id="pdn"><button data-v="0" class="'+(pl.done?'':'go')+'" onclick="planDone(false)">Not yet</button><button data-v="1" class="'+(pl.done?'go':'')+'" onclick="planDone(true)">Done</button></div>'+
+    '<div class="btns">'+(it?'<button class="no" onclick="planDel()">Delete</button>':'')+'<button onclick="planBack()">Cancel</button><button class="go" onclick="planSave()">Save</button></div>');
+  planGrpChips();planFldChips();
+}
+function planBack(){if(pl.from&&S.items.some(x=>x.id===pl.from))fieldSheet(pl.from);else planSheet(pl.y)}
+function planSave(){
+  const title=$('#ptl').value.trim();if(!title){alert('Give the item a short title.');return}
+  let it=pl.id&&S.fplan.items.find(x=>x.id===pl.id);
+  if(!it){it={id:uid(),y:pl.y,t:Date.now()};S.fplan.items.push(it)}
+  Object.assign(it,{title,group:pl.group,note:$('#ptx').value.trim(),fields:pl.fields.slice(),done:pl.done});
+  save();planBack();
+}
+function planDel(){if(!confirm('Delete this plan item?'))return;S.fplan.items=S.fplan.items.filter(x=>x.id!==pl.id);save();planBack()}
+function planCopy(){
+  const src=S.fplan.items.filter(i=>i.y===pl.y),to=String(+pl.y+1);
+  if(!src.length){alert('There is nothing in '+pl.y+' to copy yet.');return}
+  const have=S.fplan.items.filter(i=>i.y===to).length;
+  if(!confirm('Copy '+src.length+' items from '+pl.y+' to '+to+'? Ticks are cleared.'+(have?' '+to+' already has '+have+' items; these are added after them.':'')))return;
+  src.forEach(i=>S.fplan.items.push({...i,id:uid(),y:to,done:false,fields:(i.fields||[]).slice(),t:Date.now()}));
+  if(!S.fplan.years.includes(to))S.fplan.years.push(to);save();planSheet(to);
+}
+function planGroupsSheet(){
+  open('<h2 style="margin:0">Plan groups</h2><div class="small">Rename, add or remove the headings in your plan.</div>'+
+    S.fplan.groups.map((g,i)=>'<div class="orow"><b>'+esc(g)+'</b> <span class="small">'+S.fplan.items.filter(x=>x.group===g).length+' items</span><div class="two" style="margin-top:6px"><button onclick="planGrpRename('+i+')">Rename</button><button class="no" onclick="planGrpDel('+i+')">Remove</button></div></div>').join('')+
+    '<button class="go" style="width:100%;margin:12px 0 0" onclick="planGrpAdd()">+ Add group</button><div class="btns"><button class="go" onclick="planSheet()">Back</button></div>');
+}
+function planGrpAdd(){const n=(prompt('Name of the new group')||'').trim();if(!n)return;if(!S.fplan.groups.some(g=>g.toLowerCase()===n.toLowerCase())){S.fplan.groups.push(n);save()}planGroupsSheet()}
+function planGrpRename(i){
+  const old=S.fplan.groups[i],n=(prompt('New name for "'+old+'"',old)||'').trim();if(!n||n===old)return;
+  if(S.fplan.groups.some((g,k)=>k!==i&&g.toLowerCase()===n.toLowerCase())){alert('A group with that name already exists.');return}
+  S.fplan.groups[i]=n;S.fplan.items.forEach(x=>{if(x.group===old)x.group=n});save();planGroupsSheet();
+}
+function planGrpDel(i){
+  const g=S.fplan.groups[i],n=S.fplan.items.filter(x=>x.group===g).length;
+  if(S.fplan.groups.length<2){alert('Keep at least one group.');return}
+  if(!confirm('Remove the group "'+g+'"?'+(n?' Its '+n+' items move to another group.':'')))return;
+  S.fplan.groups.splice(i,1);const to=S.fplan.groups.includes('Other')?'Other':S.fplan.groups[0];
+  S.fplan.items.forEach(x=>{if(x.group===g)x.group=to});save();planGroupsSheet();
+}
+function planFieldHtml(f){
+  const ids=new Set(members(f).map(m=>m.id)),its=S.fplan.items.filter(i=>(i.fields||[]).some(x=>ids.has(x)));if(!its.length)return '';
+  const y=its.map(i=>i.y).sort().pop(),show=its.filter(i=>i.y===y);
+  return '<h3>Plan for '+esc(y)+'</h3>'+show.map(i=>'<div class="nrow" onclick="planOpen(\''+i.id+'\',\''+f.id+'\')"><b>'+(i.done?'✓ ':'')+esc(i.title)+'</b> <span class="small">'+esc(i.group)+'</span>'+(i.note?'<div class="nt">'+esc(i.note)+'</div>':'')+'</div>').join('');
 }
 load().then(d=>{if(d)S=d;migrate();redraw();zoomAll();showHome()});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
