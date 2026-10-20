@@ -693,7 +693,7 @@ $('#fab2').onclick=obsListSheet;
 /* photo + note */
 const STAGES='<optgroup label="Cereals"><option>Emerged</option><option>1–2 leaf</option><option>3–4 leaf</option><option>5+ leaf / tillering</option><option>Stem elongation</option><option>Flag leaf</option><option>Boot</option><option>Heading</option><option>Flowering</option><option>Soft dough</option><option>Hard dough</option><option>Ripe</option></optgroup>'+
 '<optgroup label="Canola"><option>Cotyledon</option><option>2–4 leaf</option><option>5–6 leaf</option><option>Rosette</option><option>Bolting</option><option>Flowering</option><option>Podding</option><option>Seed fill</option><option>Ripe</option></optgroup><optgroup label="Other"><option>Other (see note)</option></optgroup>';
-function shrink(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.7))};im.onerror=()=>r(null);im.src=u})}
+function shrink0(f){return new Promise(r=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.7))};im.onerror=()=>r(null);im.src=u})}
 $('#bObs').onclick=()=>scoutStart();
 function obsDefault(){const a=S.layers.find(x=>x.id===S.active);if(a&&!a.always)return a.id;return S.layers.some(x=>x.id===S.obsLayer)?S.obsLayer:((S.layers.find(x=>!x.always)||S.layers[0]||{}).id)}
 function obsSheet(){
@@ -1021,6 +1021,16 @@ function ntType(t){nt.type=t;document.querySelectorAll('#ntt button').forEach(b=
 function ntRem(k){nt.rem=k;document.querySelectorAll('#ntr button').forEach(b=>b.classList.toggle('go',+b.dataset.k===k))}
 function ntPics(){$('#ntp').innerHTML=nt.photos.map((p,k)=>'<div><img data-zoom="1" src="'+p+'"><button class="no" onclick="ntRm('+k+')">Remove</button></div>').join('')}
 function ntRm(k){nt.photos.splice(k,1);ntPics()}
+/* photos: try the normal way, then another decoder, then convert HEIC (Samsung/iPhone "high efficiency" photos) */
+let heicP=null;
+function loadHeic(){if(window.heic2any)return Promise.resolve();if(!heicP)heicP=new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';sc.onload=ok;sc.onerror=()=>{heicP=null;no(new Error('load'))};document.head.appendChild(sc)});return heicP}
+const isHeic=f=>/heic|heif/i.test((f.type||'')+' '+(f.name||''));
+async function shrink(f){
+  let d=await shrink0(f);if(d)return d;
+  d=await shrink2(f);if(d&&d.length>100)return d;
+  if(isHeic(f)||!f.type){try{await loadHeic();let o=await heic2any({blob:f,toType:'image/jpeg',quality:.7});if(Array.isArray(o))o=o[0];d=(await shrink0(o))||(await shrink2(o))}catch(e){d=null}}
+  return d&&d.length>100?d:null;
+}
 /* second way to read a photo, for phones where the first one cannot decode it */
 function shrink2(f){return new Promise(async r=>{try{
   let src;if(window.createImageBitmap){src=await createImageBitmap(f)}
@@ -1031,12 +1041,12 @@ let ntBusy=false;
 async function ntAddPics(inp){
   if(ntBusy)return;const files=[...(inp.files||[])],st=$('#nts');
   if(!files.length){if(st)st.textContent='No photo was received. Try choosing it again.';return}
-  ntBusy=true;if(st)st.textContent='Adding '+files.length+(files.length===1?' photo…':' photos…');
+  ntBusy=true;if(st)st.textContent='Adding '+files.length+(files.length===1?' photo…':' photos…')+' (phone-format HEIC photos take a few seconds)';
   const bad=[];
-  for(const f of files){let d=null;try{d=await shrink(f)}catch(e){}if(!d)d=await shrink2(f);if(d&&d.length>100)nt.photos.push(d);else bad.push((f.name||'photo')+' ('+(f.type||'unknown type')+', '+Math.round((f.size||0)/1024)+' KB)')}
+  for(const f of files){let d=null;try{d=await shrink(f)}catch(e){}if(d&&d.length>100)nt.photos.push(d);else bad.push((f.name||'photo')+' ('+(f.type||'unknown type')+', '+Math.round((f.size||0)/1024)+' KB)')}
   try{inp.value=''}catch(e){}
   ntBusy=false;if($('#ntp'))ntPics();
-  if($('#nts'))$('#nts').textContent=bad.length?'Could not read: '+bad.join('; ')+'. Try another photo or take a new one.':'Photo added. Tap Save to keep it on the note.';
+  if($('#nts'))$('#nts').textContent=bad.length?'Could not read: '+bad.join('; ')+'. HEIC photos need an internet connection the first time. Try again, or take a new photo.':'Photo added. Tap Save to keep it on the note.';
 }
 function ntPin(){nt.pin=!nt.pin;ntPinLbl()}
 function ntPinLbl(){$('#ntpin').textContent=nt.pin?'📍 Pin on map: ON (tap to remove)':'📍 Pin on map here';$('#ntpin').classList.toggle('go',nt.pin)}
