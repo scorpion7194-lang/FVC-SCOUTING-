@@ -1011,7 +1011,7 @@ function noteForm(fid,id){
     '<label>Date</label><input type="date" id="ntd" value="'+esc(n&&n.date?n.date:today())+'">'+
     '<label>Type</label><div class="chips" id="ntt">'+NTYPES.map(t=>'<button data-t="'+t+'" class="'+(t===nt.type?'go':'')+'" onclick="ntType(\''+t+'\')">'+NICON[t]+' '+t+'</button>').join('')+'</div>'+
     '<label>Note</label><textarea id="ntx" rows="5" placeholder="What you did or saw…">'+esc(n?n.text:'')+'</textarea>'+
-    '<label>Photos</label><div class="nph" id="ntp"></div><input type="file" id="ntf" accept="image/*" multiple onchange="ntAddPics(this)">'+
+    '<label>Photos</label><div class="nph" id="ntp"></div><div class="small" id="nts" style="margin-bottom:4px"></div><input type="file" id="ntf" accept="image/*" multiple onchange="ntAddPics(this)" oninput="ntAddPics(this)"><div class="small" style="margin-top:8px">Or take a new photo:</div><input type="file" id="ntc" accept="image/*" capture="environment" onchange="ntAddPics(this)" oninput="ntAddPics(this)">'+
     '<label>Map pin</label><div class="chips"><button id="ntpin" onclick="ntPin()"></button></div>'+
     (n?'':'<label>Remind me</label><div class="chips" id="ntr">'+[[0,'No'],[3,'3 days'],[7,'1 week'],[10,'10 days'],[14,'2 weeks']].map(c=>'<button data-k="'+c[0]+'" class="'+(c[0]===0?'go':'')+'" onclick="ntRem('+c[0]+')">'+c[1]+'</button>').join('')+'</div>')+
     '<div class="btns">'+(n?'<button class="no" onclick="noteDel()">Delete</button>':'')+'<button onclick="noteBack()">Cancel</button><button class="go" id="ntsv" onclick="noteSave()">Save</button></div>');
@@ -1021,7 +1021,23 @@ function ntType(t){nt.type=t;document.querySelectorAll('#ntt button').forEach(b=
 function ntRem(k){nt.rem=k;document.querySelectorAll('#ntr button').forEach(b=>b.classList.toggle('go',+b.dataset.k===k))}
 function ntPics(){$('#ntp').innerHTML=nt.photos.map((p,k)=>'<div><img data-zoom="1" src="'+p+'"><button class="no" onclick="ntRm('+k+')">Remove</button></div>').join('')}
 function ntRm(k){nt.photos.splice(k,1);ntPics()}
-async function ntAddPics(inp){for(const f of inp.files){const d=await shrink(f);if(d)nt.photos.push(d)}inp.value='';ntPics()}
+/* second way to read a photo, for phones where the first one cannot decode it */
+function shrink2(f){return new Promise(async r=>{try{
+  let src;if(window.createImageBitmap){src=await createImageBitmap(f)}
+  else{src=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=fr.result};fr.onerror=no;fr.readAsDataURL(f)})}
+  const w=src.width,h=src.height,k=Math.min(1,1000/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
+  c.getContext('2d').drawImage(src,0,0,c.width,c.height);r(c.toDataURL('image/jpeg',.7))}catch(e){r(null)}})}
+let ntBusy=false;
+async function ntAddPics(inp){
+  if(ntBusy)return;const files=[...(inp.files||[])],st=$('#nts');
+  if(!files.length){if(st)st.textContent='No photo was received. Try choosing it again.';return}
+  ntBusy=true;if(st)st.textContent='Adding '+files.length+(files.length===1?' photo…':' photos…');
+  const bad=[];
+  for(const f of files){let d=null;try{d=await shrink(f)}catch(e){}if(!d)d=await shrink2(f);if(d&&d.length>100)nt.photos.push(d);else bad.push((f.name||'photo')+' ('+(f.type||'unknown type')+', '+Math.round((f.size||0)/1024)+' KB)')}
+  try{inp.value=''}catch(e){}
+  ntBusy=false;if($('#ntp'))ntPics();
+  if($('#nts'))$('#nts').textContent=bad.length?'Could not read: '+bad.join('; ')+'. Try another photo or take a new one.':'Photo added. Tap Save to keep it on the note.';
+}
 function ntPin(){nt.pin=!nt.pin;ntPinLbl()}
 function ntPinLbl(){$('#ntpin').textContent=nt.pin?'📍 Pin on map: ON (tap to remove)':'📍 Pin on map here';$('#ntpin').classList.toggle('go',nt.pin)}
 function noteBack(){if(nt.home)notesAllSheet(nt.flt);else if(nt.fid&&S.items.some(x=>x.id===nt.fid))notesSheet(nt.fid,nt.flt);else notesAllSheet()}
