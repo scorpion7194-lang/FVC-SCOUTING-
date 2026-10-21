@@ -248,18 +248,34 @@ const BASES=[
  {k:'w2606',n:'Esri · Jun 30, 2026',d:'Early summer 2026',u:WB+'32246/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2026-06-30)'},
  {k:'w2605',n:'Esri · May 28, 2026',d:'Spring 2026',u:WB+'10842/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2026-05-28)'},
  {k:'w2510',n:'Esri · Oct 23, 2025',d:'Fall 2025',u:WB+'20512/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2025-10-23)'},
- {k:'w2509',n:'Esri · Sep 25, 2025',d:'Late summer 2025',u:WB+'58924/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2025-09-25)'}];
+ {k:'w2509',n:'Esri · Sep 25, 2025',d:'Late summer 2025',u:WB+'58924/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2025-09-25)'},
+ {k:'mb1',n:'Mapbox satellite',d:'Satellite pictures only',mb:'satellite-v9',at:'© Mapbox © OpenStreetMap © Maxar'},
+ {k:'mb2',n:'Mapbox satellite with roads and names',d:'Satellite with road names and labels',mb:'satellite-streets-v12',at:'© Mapbox © OpenStreetMap © Maxar'}];
 let BASE=null;
 function applyBase(){
-  const b=BASES.find(x=>x.k===S.basemap)||BASES[0];
+  let b=BASES.find(x=>x.k===S.basemap)||BASES[0];
+  if(b.mb&&!S.mapboxToken)b=BASES[0];
   if(BASE)map.removeLayer(BASE);
-  BASE=L.tileLayer(b.u,{maxZoom:19,maxNativeZoom:b.nz,attribution:b.at}).addTo(map);BASE.bringToBack();
+  if(b.mb){
+    BASE=L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/'+b.mb+'/tiles/{z}/{x}/{y}?access_token='+encodeURIComponent(S.mapboxToken),{tileSize:512,zoomOffset:-1,maxZoom:19,attribution:b.at});
+    let bad=0,good=0;BASE.on('tileload',()=>{good++});
+    BASE.on('tileerror',()=>{bad++;if(bad===6&&!good&&!window.mbWarned){window.mbWarned=1;alert('The Mapbox map is not loading. That is either weak signal or a wrong token. Check it under the map picture button.')}});
+  }else BASE=L.tileLayer(b.u,{maxZoom:19,maxNativeZoom:b.nz,attribution:b.at});
+  BASE.addTo(map);BASE.bringToBack();
 }
-function setBase(k){S.basemap=k;save();applyBase();baseSheet()}
+function setBase(k){const b=BASES.find(x=>x.k===k);if(b&&b.mb&&!S.mapboxToken){alert('Paste your Mapbox token first (the box under the list), then pick this map.');return}S.basemap=k;save();applyBase();baseSheet()}
+function saveToken(){
+  let t=($('#mbt').value||'').trim();
+  if(t&&!/^pk\.[A-Za-z0-9._-]{20,}$/.test(t)){alert('That does not look like a Mapbox public token. It starts with pk. and is a long line of letters and numbers.');return}
+  if(t)S.mapboxToken=t;else{delete S.mapboxToken;if((BASES.find(x=>x.k===S.basemap)||{}).mb)S.basemap='esri'}
+  save();applyBase();baseSheet();
+}
 function baseSheet(){
   const cur=(BASES.find(x=>x.k===S.basemap)||BASES[0]).k;
   open('<h2 style="margin:0">Map picture</h2><div class="small">Pick the satellite picture that looks best over your fields. Your fields, notes and plans do not change.</div>'+
-    BASES.map(b=>'<div class="orow" onclick="setBase(\''+b.k+'\')"><b>'+(b.k===cur?'✓ ':'')+esc(b.n)+'</b><div class="small">'+esc(b.d)+'</div></div>').join('')+
+    BASES.map(b=>'<div class="orow" onclick="setBase(\''+b.k+'\')"><b>'+(b.k===cur?'✓ ':'')+esc(b.n)+'</b><div class="small">'+esc(b.d)+(b.mb&&!S.mapboxToken?' · needs your Mapbox token':'')+'</div></div>').join('')+
+    '<h3>Mapbox token</h3><div class="small">Get a free token at mapbox.com. It is the long code that starts with pk. Paste it here once, tap Save, then pick a Mapbox map above.</div>'+
+    '<input type="text" id="mbt" placeholder="pk.…" value="'+esc(S.mapboxToken||'')+'" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="btns"><button onclick="saveToken()">'+(S.mapboxToken?'Update / remove token':'Save token')+'</button></div>'+
     '<div class="small" style="margin-top:8px">If part of the map shows blank squares when zoomed in close, pick another date or go back to the current map.</div>'+
     '<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
 }
