@@ -167,6 +167,7 @@ body.rnd .lbl{display:none}
 .sheet .pit .mvs{display:flex;flex-direction:column;gap:4px}
 .sheet .pit button.ck.on{background:#4fd1ff;color:#06222e;border-color:#4fd1ff}
 .pg{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9fdcf5;margin:14px 0 0}
+#main,#fab2{display:none!important}
 </style>
 </head>
 <body>
@@ -181,8 +182,6 @@ body.rnd .lbl{display:none}
   <div class="htiles">
     <button data-go="tasks" id="tTasks" class="wide"><svg viewBox="0 0 24 24"><path d="M9 3h6v3H9z"/><path d="M7 5H5v16h14V5h-2"/><path d="M9 14l2 2 4-4"/></svg><b>Tasks &amp; Reminders</b><span id="tTaskSub"></span></button>
     <button data-go="map"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><b>Field Map</b><span>Your fields and pins</span></button>
-    <button data-go="scout"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><b>Scout Field</b><span>Weeds, disease, insects, photos</span></button>
-    <button data-go="soil"><svg viewBox="0 0 24 24"><path d="M12 3v13M8 7h8M12 16v4"/><path d="M4 21h16"/></svg><b>Soil Sample</b><span>Drop a sample point</span></button>
     <button data-go="draw"><svg viewBox="0 0 24 24"><path d="M5 8l6-4 8 4 1 8-8 4-7-5z"/></svg><b>Draw / Measure</b><span>Fields, patches, manure</span></button>
     <button data-go="obs"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg><b>Observations</b><span>Everything you scouted</span></button>
     <button data-go="fields"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg><b>Field Records</b><span>Crop, acres, history</span></button>
@@ -683,7 +682,7 @@ function obsListSheet(){
   if(obsF&&!names.includes(obsF))obsF='';
   const rows=S.items.filter(i=>{const l=layerOf(i);return i.type==='obs'&&l.visible&&(l.always||YR==='all'||yrOf(i)===+YR)}).map(i=>({i,f:fieldOf(i.pos)})).filter(r=>!obsF||(r.f&&nameOf(r.f)===obsF)).sort((a,b)=>dkey(b.i).localeCompare(dkey(a.i)));
   let h='<h2>Observations '+(YR==='all'?'(all years)':YR)+' · '+rows.length+'</h2><label>Field</label><select onchange="obsF=this.value;obsListSheet()"><option value="">All fields</option>'+names.map(n=>'<option'+(n===obsF?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
-  if(!rows.length)h+='<div class="small" style="margin-top:10px">No observations here yet. Use Photo + note to add one.</div>';
+  if(!rows.length)h+='<div class="small" style="margin-top:10px">No observations here yet. Tap a field on the map and use + SCOUT to add one.</div>';
   rows.forEach(({i,f})=>{h+='<div class="orow" onclick="goObs(\''+i.id+'\')"><b>'+dlabel(dkey(i))+'</b> '+esc(f?nameOf(f):'Outside fields')+'<div class="small">'+esc(obsLine(i))+'</div>'+(i.note?'<div>'+esc(i.note)+'</div>':'')+(i.photos||[]).slice(0,3).map(p=>'<img src="'+p+'">').join('')+'</div>'});
   open(h+'<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
 }
