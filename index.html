@@ -167,7 +167,7 @@ body.rnd .lbl{display:none}
 .sheet .pit .mvs{display:flex;flex-direction:column;gap:4px}
 .sheet .pit button.ck.on{background:#4fd1ff;color:#06222e;border-color:#4fd1ff}
 .pg{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9fdcf5;margin:14px 0 0}
-#main,#fab2{display:none!important}
+#main{display:none!important}
 </style>
 </head>
 <body>
@@ -203,7 +203,7 @@ body.rnd .lbl{display:none}
 <button id="fab" aria-label="My location"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="#1c2b1f"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button>
 <select id="yr" aria-label="Year"></select>
 <div id="legend"></div>
-<button id="fab2" aria-label="Observations list"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" fill="#1c2b1f"/><circle cx="4" cy="12" r="1" fill="#1c2b1f"/><circle cx="4" cy="18" r="1" fill="#1c2b1f"/></svg></button>
+<button id="fab2" aria-label="Map picture"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c2b1f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 17l9 5 9-5"/></svg></button>
 <div id="lb" class="hide" onclick="this.classList.add('hide')"><img id="lbimg" alt=""><div>Tap anywhere to close</div></div>
 <div id="xh" class="hide"></div>
 <div class="bar hide" id="drawbar">
@@ -240,7 +240,30 @@ async function save(){try{const d=await DB;d.transaction('s','readwrite').object
 
 /* map */
 const map=L.map('map',{zoomControl:false}).setView([51.40,-113.80],11);
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri World Imagery'}).addTo(map);
+const WB='https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/';
+const BASES=[
+ {k:'esri',n:'Esri satellite (current)',d:'The map you have been using',u:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',nz:19,at:'Esri World Imagery'},
+ {k:'w2609',n:'Esri · Sep 24, 2026',d:'Newest saved version',u:WB+'63116/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2026-09-24)'},
+ {k:'w2608',n:'Esri · Aug 5, 2026',d:'Summer 2026',u:WB+'26334/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2026-08-05)'},
+ {k:'w2606',n:'Esri · Jun 30, 2026',d:'Early summer 2026',u:WB+'32246/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2026-06-30)'},
+ {k:'w2605',n:'Esri · May 28, 2026',d:'Spring 2026',u:WB+'10842/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2026-05-28)'},
+ {k:'w2510',n:'Esri · Oct 23, 2025',d:'Fall 2025',u:WB+'20512/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2025-10-23)'},
+ {k:'w2509',n:'Esri · Sep 25, 2025',d:'Late summer 2025',u:WB+'58924/{z}/{y}/{x}',nz:18,at:'Esri World Imagery (Wayback 2025-09-25)'}];
+let BASE=null;
+function applyBase(){
+  const b=BASES.find(x=>x.k===S.basemap)||BASES[0];
+  if(BASE)map.removeLayer(BASE);
+  BASE=L.tileLayer(b.u,{maxZoom:19,maxNativeZoom:b.nz,attribution:b.at}).addTo(map);BASE.bringToBack();
+}
+function setBase(k){S.basemap=k;save();applyBase();baseSheet()}
+function baseSheet(){
+  const cur=(BASES.find(x=>x.k===S.basemap)||BASES[0]).k;
+  open('<h2 style="margin:0">Map picture</h2><div class="small">Pick the satellite picture that looks best over your fields. Your fields, notes and plans do not change.</div>'+
+    BASES.map(b=>'<div class="orow" onclick="setBase(\''+b.k+'\')"><b>'+(b.k===cur?'✓ ':'')+esc(b.n)+'</b><div class="small">'+esc(b.d)+'</div></div>').join('')+
+    '<div class="small" style="margin-top:8px">If part of the map shows blank squares when zoomed in close, pick another date or go back to the current map.</div>'+
+    '<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
+}
+applyBase();
 const G=L.layerGroup().addTo(map);
 
 /* area on a sphere, square metres */
@@ -687,7 +710,7 @@ function obsListSheet(){
   open(h+'<div class="btns"><button class="go" onclick="closeSheet()">Done</button></div>');
 }
 function goObs(id){const i=S.items.find(x=>x.id===id),l=layerOf(i);closeSheet();map.setView(i.pos,Math.max(map.getZoom(),17));L.popup().setLatLng(i.pos).setContent(pop(i,l)).openOn(map)}
-$('#fab2').onclick=obsListSheet;
+$('#fab2').onclick=()=>{if(draw||edit||pin||locMode)return;baseSheet()};
 
 /* photo + note */
 const STAGES='<optgroup label="Cereals"><option>Emerged</option><option>1–2 leaf</option><option>3–4 leaf</option><option>5+ leaf / tillering</option><option>Stem elongation</option><option>Flag leaf</option><option>Boot</option><option>Heading</option><option>Flowering</option><option>Soft dough</option><option>Hard dough</option><option>Ripe</option></optgroup>'+
@@ -1172,7 +1195,7 @@ function planFieldHtml(f){
   const y=its.map(i=>i.y).sort().pop(),show=its.filter(i=>i.y===y);
   return '<h3>Plan for '+esc(y)+'</h3>'+show.map(i=>'<div class="nrow" onclick="planOpen(\''+i.id+'\',\''+f.id+'\')"><b>'+(i.done?'✓ ':'')+esc(i.title)+'</b> <span class="small">'+esc(i.group)+'</span>'+(i.note?'<div class="nt">'+esc(i.note)+'</div>':'')+'</div>').join('');
 }
-load().then(d=>{if(d)S=d;migrate();redraw();zoomAll();showHome()});
+load().then(d=>{if(d)S=d;migrate();applyBase();redraw();zoomAll();showHome()});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
