@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Fairview Scouting</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0c1c27">
+<meta name="theme-color" content="#f3f8fb">
 <link rel="apple-touch-icon" href="icon-512.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -168,6 +168,41 @@ body.rnd .lbl{display:none}
 .sheet .pit button.ck.on{background:#4fd1ff;color:#06222e;border-color:#4fd1ff}
 .pg{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9fdcf5;margin:14px 0 0}
 #main{display:none!important}
+/* frost white theme (overrides the dark blue theme above) */
+:root{--paper:#f3f8fb;--ink:#0b5f86;--line:rgba(11,95,134,.3);--acc:#0b7aa8;--warn:#c2410c}
+#home{background:#e9f2f7 url(background.jpg) center/cover no-repeat}
+#home:before{background:linear-gradient(180deg,rgba(243,248,251,.92) 0%,rgba(243,248,251,.8) 40%,rgba(243,248,251,.88) 100%)}
+.hname{color:#0b5f86;text-shadow:none}.hsub{color:#2f6680;text-shadow:none}
+.stat b{color:#0b5f86;text-shadow:none}.stat span{color:#2f6680;text-shadow:none}.hnote{color:#2f6680;text-shadow:none}
+.htiles button{background:rgba(255,255,255,.9);border:2px solid #0e86b8;color:#0b5f86}
+.htiles b{color:#0b5f86}.htiles span{color:#3d6a80}.htiles svg{stroke:#0b7aa8;color:#0b7aa8}
+.hlink{background:rgba(255,255,255,.9);border:2px solid #0e86b8;color:#0b5f86}
+.htiles button.due{border-color:#c2410c}.htiles button.due span{color:#c2410c}
+.bar{background:rgba(243,248,251,.97);border-top:2px solid rgba(14,134,184,.6)}
+.bar button,.sheet button{background:rgba(255,255,255,.92);color:#0b5f86;border-color:#0e86b8}
+button.go,.sheet button.go{background:#0e86b8;color:#fff;border-color:#0e86b8}
+.sheet button.blue{background:rgba(255,255,255,.92);color:#0b5f86;border-color:#0e86b8}
+button.no,.sheet button.no{color:#c2410c;border-color:#c2410c;background:transparent}
+.sheet{background:rgba(243,248,251,.98);border-top:3px solid #0e86b8;color:#0c2a3a}
+.sheet .small,.small{color:#3d6a80}
+.sheet h2,.sheet h3{color:#0b5f86}
+.sheet input[type=text],.sheet input[type=date],.sheet input[type=number],.sheet select,.sheet textarea{background:#fff;color:#0c2a3a;border-color:rgba(11,95,134,.35)}
+.orow{border-top:1px solid rgba(11,95,134,.25)}
+.notebox{background:#e6f1f7;border-color:rgba(11,95,134,.3)}
+#yr{background:#f3f8fb;color:#0b5f86;border-color:#0e86b8}
+#legend{background:rgba(243,248,251,.93);color:#0c2a3a}
+#fab,#fab2,#fabH{background:#f3f8fb;border-color:#0e86b8}
+#fab svg,#fab2 svg,#fabH svg{stroke:#0b7aa8}
+#fab svg circle[fill],#fab2 svg circle[fill]{fill:#0b7aa8}
+.sheet .tk.on{background:#0e86b8;color:#fff}
+.late{color:#c2410c!important}
+#pinInfo{background:rgba(243,248,251,.96);color:#0b5f86;border-color:#0e86b8}
+.npin{background:#f3f8fb;border-color:#0e86b8;box-shadow:0 0 0 2px #fff}
+.nrow{border-top:1px solid rgba(11,95,134,.25)}.nrow .nd{color:#0b5f86}
+.sheet .seg button.on{background:#0e86b8;color:#fff;border-color:#0e86b8}
+.pit{border-top:1px solid rgba(11,95,134,.25)}.pit .pt{color:#0b5f86}
+.sheet .pit button.ck.on{background:#0e86b8;color:#fff;border-color:#0e86b8}
+.pg{color:#3d6a80}
 </style>
 </head>
 <body>
