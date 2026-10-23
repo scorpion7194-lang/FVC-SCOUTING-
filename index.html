@@ -412,7 +412,7 @@ function cropColorRows(){
 function setCropColor(n,v){S.cropColors=S.cropColors||{};S.cropColors[decodeURIComponent(n).toLowerCase().trim()]=v;save();redraw()}
 const cropYear=()=>YR==='all'?String(new Date().getFullYear()):YR;
 const cropOf=(i,l)=>S.byCrop!==false&&l.always&&i.crops?i.crops[cropYear()]:'';
-const cropsLine=i=>i.crops&&Object.keys(i.crops).length?'<div>Crops: '+Object.keys(i.crops).sort().reverse().map(y=>y+' '+esc(i.crops[y])).join(', ')+'</div>':'';
+const cropsLine=i=>i.crops&&Object.keys(i.crops).length?'<div>Crops: '+Object.keys(i.crops).sort().reverse().map(y=>y+' '+esc(i.crops[y])+((i.varieties||{})[y]?' ('+esc(i.varieties[y])+')':'')).join(', ')+'</div>':'';
 function redraw(){
   refreshYears();
   G.clearLayers();const used={},tot={},pins=[],best={};
@@ -548,7 +548,7 @@ let detYr='';
 function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);if(it.type==='obs')return obsDetails(id);map.closePopup();detYr=cropYear();
   const groups=[...new Set(S.items.filter(x=>x.type==='poly'&&x.group).map(x=>x.group))];
   const fld=it.type==='poly'&&l.always;
-  const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+'<label>Seeded date for '+detYr+'</label><input type="date" id="dsd" value="'+esc((it.seeded||{})[detYr]||'')+'">'+
+  const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+'<label>Variety for '+detYr+'</label><input type="text" id="dv" value="'+esc((it.varieties||{})[detYr]||'')+'" placeholder="e.g. L345PC, AC Foremost">'+'<label>Seeded date for '+detYr+'</label><input type="date" id="dsd" value="'+esc((it.seeded||{})[detYr]||'')+'">'+
     '<label>Group name (fields farmed as one)</label><input type="text" id="dg" list="grpl" value="'+esc(it.group||'')+'" placeholder="e.g. Kersey 640"><datalist id="grpl">'+groups.map(g=>'<option>'+esc(g)+'</option>').join('')+'</datalist><div class="small">Give separate fields the same group name and they are labelled, cropped and tracked as one field. Leave empty if it stands alone.</div>':'';
   open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'">'+(fld?'':'<label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea>')+'<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
 function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;if($('#dt'))it.note=$('#dt').value.trim();
@@ -557,9 +557,10 @@ function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').va
     if(c)mem.forEach(x=>{x.crops=x.crops||{};x.crops[detYr]=c});
     else if(prev)mem.forEach(x=>{if(x.crops)delete x.crops[detYr]});
     else{const o=mem.find(x=>x!==it&&x.crops&&x.crops[detYr]);if(o)it.crops[detYr]=o.crops[detYr]}}
+  if($('#dv')){const v=$('#dv').value.trim(),m3=it.group?S.items.filter(x=>x.type==='poly'&&x.group===it.group):[it];m3.forEach(x=>{x.varieties=x.varieties||{};if(v)x.varieties[detYr]=v;else delete x.varieties[detYr]})}
   if($('#dsd')){const v=$('#dsd').value,m2=it.group?S.items.filter(x=>x.type==='poly'&&x.group===it.group):[it];m2.forEach(x=>{x.seeded=x.seeded||{};if(v)x.seeded[detYr]=v;else delete x.seeded[detYr]})}
   save();closeSheet();redraw()}
-function copyItem(id){const it=S.items.find(i=>i.id===id),c={...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),crops:{...(it.crops||{})},t:Date.now()};delete c.holes;delete c.group;S.items.push(c);save();map.closePopup();redraw()}
+function copyItem(id){const it=S.items.find(i=>i.id===id),c={...it,id:uid(),name:it.name+' copy',pts:it.pts.map(p=>p.slice()),crops:{...(it.crops||{})},varieties:{...(it.varieties||{})},t:Date.now()};delete c.holes;delete c.group;S.items.push(c);save();map.closePopup();redraw()}
 
 /* full backup and restore (fields, layers, points, photos) */
 function backupData(){
@@ -914,10 +915,10 @@ function scSave(){
 function fieldSheet(id){
   const f=S.items.find(x=>x.id===id);if(!f)return;
   fcard=id;map.closePopup();
-  const yr=cropYear(),mm=members(f),total=mm.reduce((a,x)=>a+netArea(x),0),crop=(f.crops||{})[yr]||'',seeded=(f.seeded||{})[yr];
+  const yr=cropYear(),mm=members(f),total=mm.reduce((a,x)=>a+netArea(x),0),crop=(f.crops||{})[yr]||'',vty=(f.varieties||{})[yr]||'',seeded=(f.seeded||{})[yr];
   const obs=S.items.filter(i=>i.type==='obs'&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(b).localeCompare(dkey(a))).slice(0,5);
   open('<h2 style="margin:0">'+esc(f.group||f.name)+'</h2>'+
-  '<div class="small">'+(crop?esc(crop)+' ('+yr+') · ':'')+acOf(total)+' ac'+(mm.length>1?' · '+mm.length+' parts':'')+(seeded?' · seeded '+dlabel(seeded):'')+'</div>'+
+  '<div class="small">'+(crop?esc(crop)+(vty?' – '+esc(vty):'')+' ('+yr+') · ':'')+acOf(total)+' ac'+(mm.length>1?' · '+mm.length+' parts':'')+(seeded?' · seeded '+dlabel(seeded):'')+'</div>'+
   '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="notesSheet(\''+id+'\')">NOTES'+(fieldNotes(f).length?' ('+fieldNotes(f).length+')':'')+'</button><button onclick="detailsSheet(\''+id+'\')">DETAILS</button><button onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
   (fieldNotes(f).length?'<h3>Latest notes</h3>'+fieldNotes(f).slice(0,2).map(n=>noteRow(n,false,false)).join('')+(fieldNotes(f).length>2?'<div class="small" style="padding:6px 0" onclick="notesSheet(\''+id+'\')">Tap NOTES to see all '+fieldNotes(f).length+'</div>':''):'')+planFieldHtml(f)+
   (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
