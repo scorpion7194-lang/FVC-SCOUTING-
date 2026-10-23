@@ -965,7 +965,7 @@ function showHome(){
   $('#hstats').innerHTML=stat(keys.size,'Fields')+stat(crops.size,'Crop types in '+yr)+stat(done.size,'Fields scouted in 30 days');
   const dc=dueCount(),oc=S.tasks.filter(t=>!t.done).length,tt=$('#tTasks');
   tt.classList.toggle('due',dc>0);$('#tTaskSub').textContent=dc?dc+(dc===1?' task due now':' tasks due now'):oc?oc+' coming up':'Nothing due';
-  const nc=(S.notes||[]).length;$('#tNoteSub').textContent=nc?nc+(nc===1?' note':' notes')+' across your fields':'Dated notes for every field';
+  const nc=(S.notes||[]).filter(nInYr).length;$('#tNoteSub').textContent=nc?nc+(nc===1?' note':' notes')+(YR==='all'?' across your fields':' in '+YR):'Dated notes for every field';
   {const y=String(planDefYear()),its=S.fplan.items.filter(i=>i.y===y);$('#tPlanSub').textContent=its.length?y+' · '+its.filter(i=>i.done).length+' of '+its.length+' done':'Next year\'s crops and order of work'}
   $('#home').classList.remove('hide');
 }
@@ -1058,7 +1058,10 @@ const NTYPES=['Weeds','Seeding','Spraying','Harvest','Fertilizer','Other'];
 const NICON={Weeds:'🌿',Seeding:'🌱',Spraying:'💧',Harvest:'🌾',Fertilizer:'🧪',Other:'📝'};
 let nt={fid:'',id:'',type:'Other',photos:[],pin:false,rem:0,home:false,flt:'All'};
 const nsort=(a,b)=>(b.date||'').localeCompare(a.date||'')||(b.t||0)-(a.t||0);
-function fieldNotes(f){const ids=new Set(members(f).map(m=>m.id));return (S.notes||[]).filter(n=>ids.has(n.field)).sort(nsort)}
+const nYr=n=>n.date?String(n.date).slice(0,4):String(new Date(n.t||Date.now()).getFullYear());
+const nInYr=n=>YR==='all'||nYr(n)===YR;
+const nHint=()=>YR==='all'?'':'<div class="small" style="margin:2px 0 6px">Showing '+YR+' notes. Pick All years in the year box to see every note.</div>';
+function fieldNotes(f){const ids=new Set(members(f).map(m=>m.id));return (S.notes||[]).filter(n=>ids.has(n.field)&&nInYr(n)).sort(nsort)}
 function noteRow(n,showField,home){
   const f=S.items.find(x=>x.id===n.field);
   return '<div class="nrow" onclick="noteOpen(\''+n.field+'\',\''+n.id+'\','+(home?'true':'false')+')"><span class="nd">'+esc(n.date?dlabel(n.date):'')+'</span> <span class="small">'+(NICON[n.type]||'')+' '+esc(n.type)+(showField?' · '+esc(f?nameOf(f):'(deleted field)'):'')+(n.pos?' · 📍':'')+'</span>'+
@@ -1072,7 +1075,7 @@ function notesSheet(fid,flt){
   const f=S.items.find(x=>x.id===fid);if(!f)return;
   nt.home=false;nt.fid=fid;nt.flt=flt||'All';
   const all=fieldNotes(f),list=nt.flt==='All'?all:all.filter(n=>n.type===nt.flt),yr=cropYear(),crop=(f.crops||{})[yr];
-  open('<h2 style="margin:0">'+esc(nameOf(f))+' · Notes</h2><div class="small">'+(crop?esc(crop)+' ('+yr+') · ':'')+all.length+(all.length===1?' note':' notes')+'</div>'+
+  open('<h2 style="margin:0">'+esc(nameOf(f))+' · Notes</h2><div class="small">'+(crop?esc(crop)+' ('+yr+') · ':'')+all.length+(all.length===1?' note':' notes')+'</div>'+nHint()+
     noteChips(all,nt.flt,t=>"notesSheet('"+fid+"','"+t+"')")+
     '<button class="go" style="width:100%;margin:8px 0" onclick="noteForm(\''+fid+'\')">+ ADD NOTE</button>'+
     (list.length?list.map(n=>noteRow(n,false,false)).join(''):'<div class="small">'+(all.length?'No notes of this type.':'No notes yet. Tap + ADD NOTE.')+'</div>')+
@@ -1080,8 +1083,8 @@ function notesSheet(fid,flt){
 }
 function notesAllSheet(flt){
   nt.home=true;nt.flt=flt||'All';
-  const all=(S.notes||[]).slice().sort(nsort),list=(nt.flt==='All'?all:all.filter(n=>n.type===nt.flt)).slice(0,60);
-  open('<h2 style="margin:0">Notes · all fields</h2><div class="small">'+all.length+(all.length===1?' note':' notes')+(all.length>60&&nt.flt==='All'?' · newest 60 shown':'')+'</div>'+
+  const all=(S.notes||[]).filter(nInYr).sort(nsort),list=(nt.flt==='All'?all:all.filter(n=>n.type===nt.flt)).slice(0,60);
+  open('<h2 style="margin:0">Notes · all fields</h2><div class="small">'+all.length+(all.length===1?' note':' notes')+(all.length>60&&nt.flt==='All'?' · newest 60 shown':'')+'</div>'+nHint()+
     noteChips(all,nt.flt,t=>"notesAllSheet('"+t+"')")+
     '<button class="go" style="width:100%;margin:8px 0" onclick="noteForm(\'\')">+ ADD NOTE</button>'+
     (list.length?list.map(n=>noteRow(n,true,true)).join(''):'<div class="small">'+(all.length?'No notes of this type.':'No notes yet. Tap + ADD NOTE and pick a field.')+'</div>')+
