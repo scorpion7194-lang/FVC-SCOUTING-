@@ -341,7 +341,7 @@ const acOf=a=>(a/4046.856).toFixed(1);
 function polyInfo(i){
   let h='<div>'+fmt(netArea(i))+', perimeter '+fmtLen(per(i.pts))+(holesOf(i).length?' (after cutouts)':'')+'</div>';
   if(i.group){const mm=members(i);h+='<div>Farmed as <b>'+esc(i.group)+'</b>: '+mm.length+' part'+(mm.length>1?'s':'')+', '+acOf(mm.reduce((a,x)=>a+netArea(x),0))+' ac total</div>'}
-  holesOf(i).forEach((hh,k)=>{h+='<div class="small">Cutout '+esc(hh.name||'')+', '+(area(hh.pts)/4046.856).toFixed(2)+' ac <button onclick="delHole(\''+i.id+'\','+k+')">Remove</button></div>'});
+  holesOf(i).forEach((hh,k)=>{h+='<div class="orow" onclick="cutSheet(\''+i.id+'\','+k+')"><b>Cutout'+(hh.name?': '+esc(hh.name):'')+'</b><div class="small">'+(area(hh.pts)/4046.856).toFixed(2)+' ac · tap to rename or remove</div></div>'});
   return h;
 }
 const fm=p=>fmt(area(p))+', perimeter '+fmtLen(per(p));
@@ -525,6 +525,13 @@ function saveHole(){
   it.holes=it.holes||[];it.holes.push({name:$('#hn').value.trim(),pts:draw.pts.slice()});
   save();closeSheet();endDraw();redraw();
 }
+function cutSheet(id,k){
+  const it=S.items.find(x=>x.id===id);if(!it||!holesOf(it)[k])return;const h=it.holes[k];map.closePopup();
+  open('<h2 style="margin:0">Cutout</h2><div class="small">In '+esc(nameOf(it))+' · '+(area(h.pts)/4046.856).toFixed(2)+' ac taken out of the field</div>'+
+    '<label>What is it?</label><input type="text" id="chn" value="'+esc(h.name||'')+'" placeholder="e.g. Slough, Yard">'+
+    '<div class="btns"><button onclick="fieldSheet(\''+id+'\')">Back</button><button class="go" onclick="cutSave(\''+id+'\','+k+')">Save name</button></div>'+
+    '<div class="btns"><button class="no" onclick="delHole(\''+id+'\','+k+')">Remove cutout</button></div>')}
+function cutSave(id,k){const it=S.items.find(x=>x.id===id);if(it&&it.holes&&it.holes[k]){it.holes[k].name=$('#chn').value.trim();save();redraw()}fieldSheet(id)}
 function delHole(id,k){if(!confirm('Remove this cutout?'))return;const it=S.items.find(x=>x.id===id);it.holes.splice(k,1);if(!it.holes.length)delete it.holes;save();map.closePopup();redraw();if(fcard===id&&!sheet.classList.contains('hide'))fieldSheet(id)}
 function measureOnly(){closeSheet();endDraw()}
 function savePoly(){
