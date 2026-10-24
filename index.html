@@ -338,10 +338,10 @@ const holesOf=i=>i.holes||[];
 const netArea=i=>area(i.pts)-holesOf(i).reduce((a,h)=>a+area(h.pts),0);
 const members=i=>i.group?S.items.filter(x=>x.type==='poly'&&x.group===i.group):[i];
 const acOf=a=>(a/4046.856).toFixed(1);
-function polyInfo(i){
+function polyInfo(i,noCuts){
   let h='<div>'+fmt(netArea(i))+', perimeter '+fmtLen(per(i.pts))+(holesOf(i).length?' (after cutouts)':'')+'</div>';
   if(i.group){const mm=members(i);h+='<div>Farmed as <b>'+esc(i.group)+'</b>: '+mm.length+' part'+(mm.length>1?'s':'')+', '+acOf(mm.reduce((a,x)=>a+netArea(x),0))+' ac total</div>'}
-  holesOf(i).forEach((hh,k)=>{h+='<div class="orow" onclick="cutSheet(\''+i.id+'\','+k+')"><b>Cutout'+(hh.name?': '+esc(hh.name):'')+'</b><div class="small">'+(area(hh.pts)/4046.856).toFixed(2)+' ac · tap to rename or remove</div></div>'});
+  if(!noCuts)holesOf(i).forEach((hh,k)=>{h+='<div class="orow" onclick="cutSheet(\''+i.id+'\','+k+')"><b>Cutout'+(holesOf(i).length>1?' '+(k+1):'')+(hh.name?': '+esc(hh.name):'')+'</b><div class="small">'+(area(hh.pts)/4046.856).toFixed(2)+' ac · tap to rename or remove</div></div>'});
   return h;
 }
 const fm=p=>fmt(area(p))+', perimeter '+fmtLen(per(p));
@@ -369,7 +369,7 @@ $('#fab').onclick=goMe;
 /* sheets */
 const sheet=$('#sheet');
 function open(html){sheet.innerHTML=html;sheet.classList.remove('hide');$('#main').classList.add('hide')}
-function closeSheet(){sheet.classList.add('hide');sheet.innerHTML='';if(!draw&&!pin&&!locMode)$('#main').classList.remove('hide');if(pin)$('#pinbar').classList.remove('hide')}
+function closeSheet(){if(typeof HLG!=='undefined')HLG.clearLayers();sheet.classList.add('hide');sheet.innerHTML='';if(!draw&&!pin&&!locMode)$('#main').classList.remove('hide');if(pin)$('#pinbar').classList.remove('hide')}
 const layerOpts=sel=>S.layers.map(l=>'<option value="'+l.id+'"'+(l.id===sel?' selected':'')+'>'+esc(l.name)+'</option>').join('');
 
 /* layers */
@@ -429,7 +429,7 @@ function redraw(){
     else txt=esc(i.name)+(cr?', '+esc(cr):'')+'<br>'+acOf(netArea(i))+' ac';
     if(txt)m.bindTooltip(txt,{permanent:true,direction:'center',className:'lbl'});
     m.addTo(G);
-    holesOf(i).forEach(h=>{if(h.name)L.polygon(h.pts,{stroke:false,fill:false,interactive:false}).bindTooltip(esc(h.name),{permanent:true,direction:'center',className:'lbl lbl2'}).addTo(G)});
+    holesOf(i).forEach((h,hk)=>{const multi=holesOf(i).length>1,lab=multi?(hk+1)+(h.name?' '+h.name:''):h.name;if(lab)L.polygon(h.pts,{stroke:false,fill:false,interactive:false}).bindTooltip(esc(lab),{permanent:true,direction:'center',className:'lbl lbl2'}).addTo(G)});
   });
   /* pins: nearby ones in the same layer collapse into a numbered bubble */
   const z=map.getZoom(),cells={};
@@ -525,14 +525,17 @@ function saveHole(){
   it.holes=it.holes||[];it.holes.push({name:$('#hn').value.trim(),pts:draw.pts.slice()});
   save();closeSheet();endDraw();redraw();
 }
+const HLG=L.layerGroup().addTo(map);
 function cutSheet(id,k){
   const it=S.items.find(x=>x.id===id);if(!it||!holesOf(it)[k])return;const h=it.holes[k];map.closePopup();
-  open('<h2 style="margin:0">Cutout</h2><div class="small">In '+esc(nameOf(it))+' · '+(area(h.pts)/4046.856).toFixed(2)+' ac taken out of the field</div>'+
+  HLG.clearLayers();const pg=L.polygon(h.pts,{color:'#ffffff',weight:4,dashArray:'8 6',fillColor:'#e5484d',fillOpacity:.45,interactive:false}).addTo(HLG);
+  try{map.fitBounds(pg.getBounds(),{padding:[60,60],maxZoom:18,paddingBottomRight:[60,Math.round(innerHeight*.5)]})}catch(e){}
+  open('<h2 style="margin:0">Cutout'+(it.holes.length>1?' '+(k+1)+' of '+it.holes.length:'')+(h.name?': '+esc(h.name):'')+'</h2><div class="small">In '+esc(nameOf(it))+' · '+(area(h.pts)/4046.856).toFixed(2)+' ac taken out of the field</div>'+
     '<label>What is it?</label><input type="text" id="chn" value="'+esc(h.name||'')+'" placeholder="e.g. Slough, Yard">'+
     '<div class="btns"><button onclick="fieldSheet(\''+id+'\')">Back</button><button class="go" onclick="cutSave(\''+id+'\','+k+')">Save name</button></div>'+
     '<div class="btns"><button class="no" onclick="delHole(\''+id+'\','+k+')">Remove cutout</button></div>')}
-function cutSave(id,k){const it=S.items.find(x=>x.id===id);if(it&&it.holes&&it.holes[k]){it.holes[k].name=$('#chn').value.trim();save();redraw()}fieldSheet(id)}
-function delHole(id,k){if(!confirm('Remove this cutout?'))return;const it=S.items.find(x=>x.id===id);it.holes.splice(k,1);if(!it.holes.length)delete it.holes;save();map.closePopup();redraw();if(fcard===id&&!sheet.classList.contains('hide'))fieldSheet(id)}
+function cutSave(id,k){HLG.clearLayers();const it=S.items.find(x=>x.id===id);if(it&&it.holes&&it.holes[k]){it.holes[k].name=$('#chn').value.trim();save();redraw()}fieldSheet(id)}
+function delHole(id,k){HLG.clearLayers();if(!confirm('Remove this cutout?'))return;const it=S.items.find(x=>x.id===id);it.holes.splice(k,1);if(!it.holes.length)delete it.holes;save();map.closePopup();redraw();if(fcard===id&&!sheet.classList.contains('hide'))fieldSheet(id)}
 function measureOnly(){closeSheet();endDraw()}
 function savePoly(){
   S.items.push({id:uid(),type:'poly',layer:S.active,name:$('#pn').value.trim()||'Unnamed',date:$('#pd').value,note:$('#pnote').value.trim(),pts:draw.pts.slice(),t:Date.now()});
@@ -702,7 +705,7 @@ function hitsAt(ll){
 map.on('click',e=>{
   if(draw||edit||pin||locMode)return;
   const h=hitsAt(e.latlng);lastHit=e.latlng;if(!h.length)return;
-  if(h.length===1&&layerOf(h[0][0]).always){fieldSheet(h[0][0].id);return}
+  if(h.length===1&&layerOf(h[0][0]).always){const f0=h[0][0],hk=holesOf(f0).findIndex(x=>ptIn(x.pts,[e.latlng.lat,e.latlng.lng]));if(hk>=0){cutSheet(f0.id,hk);return}fieldSheet(f0.id);return}
   const c=h.length===1?pop(h[0][0],h[0][1]):'<div class="pop"><b>'+h.length+' areas here</b>'+h.map(([i,l])=>'<button class="hit" onclick="showItem(\''+i.id+'\')"><span style="color:'+l.color+'">■</span> '+esc(i.name)+'<br><small>'+esc(l.name)+(i.date?', '+i.date:'')+', '+(area(i.pts)/4046.856).toFixed(1)+' ac</small></button>').join('')+'</div>';
   L.popup().setLatLng(e.latlng).setContent(c).openOn(map);
 });
@@ -920,6 +923,7 @@ function scSave(){
 
 /* field screen: tap a field */
 function fieldSheet(id){
+  HLG.clearLayers();
   const f=S.items.find(x=>x.id===id);if(!f)return;
   fcard=id;map.closePopup();
   const yr=cropYear(),mm=members(f),total=mm.reduce((a,x)=>a+netArea(x),0),crop=(f.crops||{})[yr]||'',vty=(f.varieties||{})[yr]||'',seeded=(f.seeded||{})[yr];
@@ -929,7 +933,7 @@ function fieldSheet(id){
   '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="notesSheet(\''+id+'\')">NOTES'+(fieldNotes(f).length?' ('+fieldNotes(f).length+')':'')+'</button><button onclick="detailsSheet(\''+id+'\')">DETAILS</button><button onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
   (fieldNotes(f).length?'<h3>Latest notes</h3>'+fieldNotes(f).slice(0,2).map(n=>noteRow(n,false,false)).join('')+(fieldNotes(f).length>2?'<div class="small" style="padding:6px 0" onclick="notesSheet(\''+id+'\')">Tap NOTES to see all '+fieldNotes(f).length+'</div>':''):'')+planFieldHtml(f)+
   (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
-  '<div class="pop" style="margin-top:6px">'+polyInfo(f)+'</div>'+
+  '<div class="pop" style="margin-top:6px">'+polyInfo(f,true)+'</div>'+
   (()=>{const sp=spotsOf(id).length,rs=S.round&&mm.some(m=>m.id===S.round.fid),last=S.rounds.filter(x=>mm.some(m=>m.id===x.fid)).sort((a,b)=>b.date.localeCompare(a.date))[0];return sp||rs?'<h3>Soil sampling</h3><div class="orow"'+(rs?' onclick="roundResume()"':' onclick="soilStart(\''+id+'\')"')+'><b>'+sp+(sp===1?' spot':' spots')+' mapped</b><div class="small">'+(rs?'Round in progress: '+rDone()+' of '+S.round.spots.length+' sampled · tap to continue':last?'Last sampled '+dlabel(last.date):'Not sampled yet · tap to start')+'</div></div>':''})()+
   '<h3>Recent observations</h3>'+
   (obs.length?obs.map(i=>'<div class="orow" onclick="goObs(\''+i.id+'\')"><b>'+esc(obsLine1(i))+'</b><div class="small">'+dlabel(dkey(i))+((i.photos||[]).length?' · Photo':'')+(i.crop?' · '+esc(i.crop):'')+'</div></div>').join(''):'<div class="small">Nothing scouted in this field yet.</div>')+
