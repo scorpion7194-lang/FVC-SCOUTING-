@@ -429,7 +429,7 @@ function redraw(){
     else txt=esc(i.name)+(cr?', '+esc(cr):'')+'<br>'+acOf(netArea(i))+' ac';
     if(txt)m.bindTooltip(txt,{permanent:true,direction:'center',className:'lbl'});
     m.addTo(G);
-    holesOf(i).forEach((h,hk)=>{const multi=holesOf(i).length>1,lab=multi?(hk+1)+(h.name?' '+h.name:''):h.name;if(lab)L.polygon(h.pts,{stroke:false,fill:false,interactive:false}).bindTooltip(esc(lab),{permanent:true,direction:'center',className:'lbl lbl2'}).addTo(G)});
+    holesOf(i).forEach((h,hk)=>{const lab=h.name;if(lab)L.polygon(h.pts,{stroke:false,fill:false,interactive:false}).bindTooltip(esc(lab),{permanent:true,direction:'center',className:'lbl lbl2'}).addTo(G)});
   });
   /* pins: nearby ones in the same layer collapse into a numbered bubble */
   const z=map.getZoom(),cells={};
