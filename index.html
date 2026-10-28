@@ -215,6 +215,8 @@ button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit butto
 #legend{background:linear-gradient(180deg,#fff 0%,#f4e4e4 50%,#ead0d0 54%,#f7eaea 100%);border:2px solid #a31d1d;border-radius:8px;color:#7a1212;box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(0,0,0,.35);padding:2px 0}
 #legend b{color:#7a1212}
 #legend i{border:1px solid rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
+/* markers */
+.pin.mk{border-radius:5px;transform:rotate(45deg)}
 /* smaller map labels */
 .lbl{font-size:10.5px;line-height:1.2;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,.6)}
 .lbl2{font-size:10.5px}
@@ -436,7 +438,7 @@ function redraw(){
   });
   /* pins: nearby ones in the same layer collapse into a numbered bubble */
   const z=map.getZoom(),cells={};
-  const rs=S.round?new Set(S.round.spots):null,mkPin=(i,l,todo)=>{const m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin'+(todo?' todo':'')+'" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:todo?500:0});m.bindPopup(()=>pop(i,l));m.addTo(G)};
+  const rs=S.round?new Set(S.round.spots):null,mkPin=(i,l,todo)=>{const m=L.marker(i.pos,{icon:L.divIcon({className:'',html:'<div class="pin'+(todo?' todo':'')+(i.type==='mk'?' mk':'')+'" style="background:'+l.color+'">'+(i.photos&&i.photos.length?'📷':'')+'</div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:todo?500:0});m.bindPopup(()=>pop(i,l));m.addTo(G)};
   const rest=pins.filter(p=>!(rs&&rs.has(p.i.id)));pins.filter(p=>rs&&rs.has(p.i.id)).forEach(p=>mkPin(p.i,p.l,!S.round.done[p.i.id]));
   rest.forEach(p=>{const q=map.project(p.i.pos,z),k=p.l.id+':'+Math.floor(q.x/48)+':'+Math.floor(q.y/48);(cells[k]=cells[k]||[]).push(p)});
   Object.values(cells).forEach(c=>{
@@ -456,7 +458,7 @@ function pop(i,l){
     (i.photos||[]).forEach(p=>h+='<img data-zoom="1" src="'+p+'">')}
   if(i.type==='poly')h+='<button onclick="editItem(\''+i.id+'\')">Edit corners</button><button onclick="detailsSheet(\''+i.id+'\')">Details</button><button onclick="startCutout(\''+i.id+'\')">Cut out</button><button onclick="copyItem(\''+i.id+'\')">Copy</button><button onclick="historySheet(\''+i.id+'\')">History</button>';
   if(i.type==='pt'&&S.round&&S.round.spots.includes(i.id))h+=S.round.done[i.id]?'<button onclick="roundMark(\''+i.id+'\',false)">Not sampled yet</button>':'<button class="go" onclick="roundMark(\''+i.id+'\',true)">Mark sampled</button>';
-  if(i.type==='pt'||i.type==='obs')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
+  if(i.type==='pt'||i.type==='obs'||i.type==='mk')h+='<button onclick="detailsSheet(\''+i.id+'\')">Details</button>';
   return h+'<button class="no" onclick="delItem(\''+i.id+'\')">Delete</button></div>';
 }
 function delItem(id){if(!confirm('Delete this item?'))return;S.items=S.items.filter(i=>i.id!==id);map.closePopup();save();redraw()}
@@ -558,7 +560,7 @@ function endEdit(){map.removeLayer(edit.poly);map.removeLayer(edit.hs);edit=null
 $('#eCancel').onclick=endEdit;
 $('#eDone').onclick=()=>{edit.it.pts=edit.pts;save();endEdit()};
 let detYr='';
-function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);if(it.type==='obs')return obsDetails(id);map.closePopup();detYr=cropYear();
+function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);if(it.type==='obs')return obsDetails(id);if(it.type==='mk')return markSheet(null,null,id);map.closePopup();detYr=cropYear();
   const groups=[...new Set(S.items.filter(x=>x.type==='poly'&&x.group).map(x=>x.group))];
   const fld=it.type==='poly'&&l.always;
   const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+'<label>Variety for '+detYr+'</label><input type="text" id="dv" value="'+esc((it.varieties||{})[detYr]||'')+'" placeholder="e.g. L345PC, AC Foremost">'+'<label>Seeded date for '+detYr+'</label><input type="date" id="dsd" value="'+esc((it.seeded||{})[detYr]||'')+'">'+
@@ -591,18 +593,20 @@ function restoreData(){
 }
 
 /* soil sample points: crosshair or GPS, repeat quickly */
-let pin=false;
-function endPin(){pin=false;document.body.classList.remove('rnd');clearInterval(rTimer);$('#pinbar').classList.remove('round');$('#pinInfo').classList.add('hide');$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
-function pinOn(){
-  let l=S.layers.find(x=>x.name==='Soil samples');
+let pin=false,pinKind=null;
+function endPin(){pin=false;pinKind=null;document.body.classList.remove('rnd');clearInterval(rTimer);$('#pinbar').classList.remove('round');$('#pinInfo').classList.add('hide');$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
+function pinOn(kind){
+  pinKind=kind||null;
+  if(pinKind==='mk'){let m=S.layers.find(x=>x.id===S.mkLayer)||S.layers.find(x=>x.name==='Markers');if(!m){m={id:uid(),name:'Markers',color:'#ff8a00',visible:true};S.layers.push(m);save()}S.mkLayer=m.id;m.visible=true;redraw()}
+  else{let l=S.layers.find(x=>x.name==='Soil samples');
   if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true,always:true};S.layers.push(l);save()}
-  l.visible=true;if(!S.ptLayer)S.ptLayer=l.id;redraw();
+  l.visible=true;if(!S.ptLayer)S.ptLayer=l.id;redraw()}
   pin=true;$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#pinbar').classList.remove('round');$('#xh').classList.remove('hide');if(!watching)startGps();
 }
 $('#bPt').onclick=()=>soilStart();
 $('#pCancel').onclick=endPin;
-$('#pDrop').onclick=()=>{const c=map.getCenter();ptSheet([c.lat,c.lng],null)};
-$('#pGps').onclick=()=>{const f=()=>ptSheet([gps.lat,gps.lng],gps.acc);if(gps)f();else if(watching)alert('Still waiting for a GPS fix. Try again in a moment.');else startGps(f)};
+$('#pDrop').onclick=()=>{const c=map.getCenter();(pinKind==='mk'?markSheet:ptSheet)([c.lat,c.lng],null)};
+$('#pGps').onclick=()=>{const f=()=>(pinKind==='mk'?markSheet:ptSheet)([gps.lat,gps.lng],gps.acc);if(gps)f();else if(watching)alert('Still waiting for a GPS fix. Try again in a moment.');else startGps(f)};
 const nextName=n=>{const m=n.match(/^(.*?)(\d+)$/);return m?m[1]+(+m[2]+1):n};
 function ptSheet(pos,acc){
   $('#pinbar').classList.add('hide');
@@ -615,6 +619,43 @@ function ptSheet(pos,acc){
   '<label>Notes</label><textarea id="tt" rows="2"></textarea>'+
   '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="savePt('+pos[0]+','+pos[1]+','+(acc||0)+')">Save point</button></div>');
 }
+/* markers: a named pin for things like sulphur strips, kept apart from soil sampling */
+let mkPh=[],mkBusy=false;
+function markStart(fid){
+  if(draw||edit||locMode)return;
+  const f=S.items.find(x=>x.id===fid);
+  if(f){try{map.fitBounds(L.latLngBounds(members(f).flatMap(m=>m.pts)),{padding:[30,30],maxZoom:18})}catch(e){}}
+  pinOn('mk');
+}
+function mkPhotos(){$('#mkp').innerHTML=mkPh.length?mkPh.map((p,k)=>'<div class="ph"><img data-zoom="1" src="'+p+'"><button class="no" onclick="mkRmPhoto('+k+')">Remove</button></div>').join(''):'<div class="small">No photos yet.</div>'}
+function mkRmPhoto(k){if(!confirm('Remove this photo?'))return;mkPh.splice(k,1);mkPhotos()}
+async function mkAddPics(inp){
+  if(mkBusy)return;const files=[...(inp.files||[])],st=$('#mks');
+  if(!files.length){if(st)st.textContent='No photo was received. Try choosing it again.';return}
+  mkBusy=true;if(st)st.textContent='Adding photo…';const bad=[];
+  for(const f of files){let d=null;try{d=await shrink(f)}catch(e){}if(d&&d.length>100)mkPh.push(d);else bad.push(f.name||'photo')}
+  try{inp.value=''}catch(e){}
+  mkBusy=false;if($('#mkp'))mkPhotos();if($('#mks'))$('#mks').textContent=bad.length?'Could not read: '+bad.join('; ')+'. Try again.':'Photo added. Tap Save to keep it.';
+}
+function markSheet(pos,acc,id){
+  const it=id?S.items.find(x=>x.id===id):null;if(id&&!it)return;
+  if(it){pos=it.pos;acc=it.acc}map.closePopup();$('#pinbar').classList.add('hide');mkPh=it?(it.photos||[]).slice():[];
+  open('<h2>'+(it?'Marker details':'New marker')+'</h2><div class="small">'+pos[0].toFixed(5)+', '+pos[1].toFixed(5)+(acc?' (GPS ±'+Math.round(acc)+' m)':(it?'':' (crosshair)'))+'</div>'+
+  '<label>Name</label><input type="text" id="mkn" value="'+esc(it?it.name:'')+'" placeholder="e.g. Sulphur strip">'+
+  '<label>Date</label><input type="date" id="mkd" value="'+esc(it?(it.date||''):today())+'">'+
+  '<label>Notes</label><textarea id="mkt" rows="3">'+esc(it?(it.note||''):'')+'</textarea>'+
+  '<label>Photos</label><div id="mkp"></div><input type="file" id="mkf" accept="image/*" multiple onchange="mkAddPics(this)"><div class="small" id="mks"></div>'+
+  '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="markSave('+pos[0]+','+pos[1]+','+(acc||0)+',\''+(id||'')+'\')">Save</button></div>');
+  mkPhotos();
+}
+function markSave(a,b,acc,id){
+  const name=$('#mkn').value.trim()||'Marker',date=$('#mkd').value,note=$('#mkt').value.trim();
+  if(id){const it=S.items.find(x=>x.id===id);if(it){it.name=name;it.date=date;it.note=note;it.photos=mkPh.slice()}}
+  else S.items.push({id:uid(),type:'mk',layer:S.mkLayer,name,pos:[a,b],acc:acc||null,date,note,photos:mkPh.slice(),t:Date.now()});
+  mkPh=[];save();closeSheet();redraw()
+}
+function markGo(id){const i=S.items.find(x=>x.id===id);if(!i)return;closeSheet();map.setView(i.pos,Math.max(map.getZoom(),18));setTimeout(()=>{const l=S.layers.find(x=>x.id===i.layer);if(l)L.popup().setLatLng(i.pos).setContent(pop(i,l)).openOn(map)},250)}
+function markersOf(f){const mm=members(f);return S.items.filter(i=>i.type==='mk'&&(YR==='all'||yrOf(i)===+YR)&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(b).localeCompare(dkey(a)))}
 function savePt(a,b,acc){
   const nb=nearPt([a,b],$('#tdt').value);if(nb&&!confirm(nearMsg(nb)))return;
   S.ptLayer=$('#tl').value;S.lastPt=$('#tn').value.trim();
@@ -933,10 +974,11 @@ function fieldSheet(id){
   const obs=S.items.filter(i=>i.type==='obs'&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(b).localeCompare(dkey(a))).slice(0,5);
   open('<h2 style="margin:0">'+esc(f.group||f.name)+'</h2>'+
   '<div class="small">'+(crop?esc(crop)+(vty?' – '+esc(vty):'')+' ('+yr+') · ':'')+acOf(total)+' ac'+(mm.length>1?' · '+mm.length+' parts':'')+(seeded?' · seeded '+dlabel(seeded):'')+'</div>'+
-  '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="notesSheet(\''+id+'\')">NOTES'+(fieldNotes(f).length?' ('+fieldNotes(f).length+')':'')+'</button><button onclick="detailsSheet(\''+id+'\')">DETAILS</button><button onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
+  '<div class="fgrid"><button class="go" onclick="fieldGo(\'scout\',\''+id+'\')">+ SCOUT</button><button class="blue" onclick="fieldGo(\'soil\',\''+id+'\')">SOIL SAMPLE</button><button onclick="historySheet(\''+id+'\')">HISTORY</button><button onclick="fieldGo(\'mark\',\''+id+'\')">+ MARKER</button><button onclick="notesSheet(\''+id+'\')">NOTES'+(fieldNotes(f).length?' ('+fieldNotes(f).length+')':'')+'</button><button onclick="detailsSheet(\''+id+'\')">DETAILS</button><button onclick="taskForm(\'\',\''+id+'\',\'field\')">+ REMINDER / TASK</button></div>'+
   (fieldNotes(f).length?'<h3>Latest notes</h3>'+fieldNotes(f).slice(0,2).map(n=>noteRow(n,false,false)).join('')+(fieldNotes(f).length>2?'<div class="small" style="padding:6px 0" onclick="notesSheet(\''+id+'\')">Tap NOTES to see all '+fieldNotes(f).length+'</div>':''):'')+planFieldHtml(f)+
   (S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).length?'<h3>Reminders</h3>'+S.tasks.filter(t=>!t.done&&mm.some(m=>m.id===t.field)).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,4).map(t=>'<div class="orow" onclick="taskForm(\''+t.id+'\',\'\',\'field\')"><b>'+esc(t.title)+'</b><div class="small'+(daysTo(t.due)<0?' late':'')+'">'+dlabel(t.due)+' · '+dueText(t.due)+'</div></div>').join(''):'')+
   '<div class="pop" style="margin-top:6px">'+polyInfo(f,true)+'</div>'+
+  (()=>{const mk=markersOf(f);return mk.length?'<h3>Markers</h3>'+mk.map(i=>'<div class="orow" onclick="markGo(\''+i.id+'\')"><b>'+esc(i.name)+'</b><div class="small">'+(i.date?dlabel(i.date)+' · ':'')+(i.photos&&i.photos.length?'Photo · ':'')+'tap to see on map</div></div>').join(''):''})()+
   (()=>{const sp=spotsOf(id).length,rs=S.round&&mm.some(m=>m.id===S.round.fid),last=S.rounds.filter(x=>mm.some(m=>m.id===x.fid)).sort((a,b)=>b.date.localeCompare(a.date))[0];return sp||rs?'<h3>Soil sampling</h3><div class="orow"'+(rs?' onclick="roundResume()"':' onclick="soilStart(\''+id+'\')"')+'><b>'+sp+(sp===1?' spot':' spots')+' mapped</b><div class="small">'+(rs?'Round in progress: '+rDone()+' of '+S.round.spots.length+' sampled · tap to continue':last?'Last sampled '+dlabel(last.date):'Not sampled yet · tap to start')+'</div></div>':''})()+
   '<h3>Recent observations</h3>'+
   (obs.length?obs.map(i=>'<div class="orow" onclick="goObs(\''+i.id+'\')"><b>'+esc(obsLine1(i))+'</b><div class="small">'+dlabel(dkey(i))+((i.photos||[]).length?' · Photo':'')+(i.crop?' · '+esc(i.crop):'')+'</div></div>').join(''):'<div class="small">Nothing scouted in this field yet.</div>')+
@@ -947,6 +989,7 @@ function fieldGo(a,id){
   closeSheet();
   if(a==='scout')scoutStart(id);
   else if(a==='soil')soilStart(id);
+  else if(a==='mark')markStart(id);
   else if(a==='edit')editItem(id);
   else if(a==='cut')startCutout(id);
   else if(a==='copy')copyItem(id);
