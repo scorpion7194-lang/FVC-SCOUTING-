@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Fairview Scouting</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#faf4f4">
+<meta name="theme-color" content="#143a31">
 <link rel="apple-touch-icon" href="icon-512.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -169,51 +169,51 @@ body.rnd .lbl{display:none}
 .pg{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9fdcf5;margin:14px 0 0}
 #main{display:none!important}
 /* frost white theme (overrides the dark blue theme above) */
-:root{--paper:#faf4f4;--ink:#7a1212;--line:rgba(122,18,18,.3);--acc:#a31d1d;--warn:#b45309}
-#home{background:#f2e6e6 url(background.jpg) center/cover no-repeat}
-#home:before{background:linear-gradient(180deg,rgba(245,232,232,.58) 0%,rgba(245,232,232,.22) 38%,rgba(245,232,232,.34) 100%)}
-.hname{color:#7a1212;text-shadow:none}.hsub{color:#7a4040;text-shadow:none}
-.stat b{color:#7a1212;text-shadow:none}.stat span{color:#7a4040;text-shadow:none}.hnote{color:#7a4040;text-shadow:none}
-.htiles button{background:rgba(250,240,240,.72);border:2px solid #a31d1d;color:#7a1212}
-.htiles b{color:#7a1212}.htiles span{color:#7a4040}.htiles svg{stroke:#a31d1d;color:#a31d1d}
-.hlink{background:rgba(250,240,240,.72);border:2px solid #a31d1d;color:#7a1212}
+:root{--paper:#143a31;--ink:#d6ffd0;--line:rgba(0,0,0,.3);--acc:#86f086;--warn:#b45309}
+#home{background:#0c211c url(background.jpg) center/cover no-repeat}
+#home:before{background:linear-gradient(180deg,rgba(8,30,26,.58) 0%,rgba(8,30,26,.22) 38%,rgba(8,30,26,.34) 100%)}
+.hname{color:#d6ffd0;text-shadow:none}.hsub{color:#bfe3c8;text-shadow:none}
+.stat b{color:#d6ffd0;text-shadow:none}.stat span{color:#bfe3c8;text-shadow:none}.hnote{color:#bfe3c8;text-shadow:none}
+.htiles button{background:rgba(14,44,37,.72);border:2px solid #86f086;color:#d6ffd0}
+.htiles b{color:#d6ffd0}.htiles span{color:#bfe3c8}.htiles svg{stroke:#86f086;color:#86f086}
+.hlink{background:rgba(14,44,37,.72);border:2px solid #86f086;color:#d6ffd0}
 .htiles button.due{border-color:#b45309}.htiles button.due span{color:#b45309}
-.bar{background:rgba(250,244,244,.97);border-top:2px solid rgba(163,29,29,.6)}
-.bar button,.sheet button{background:rgba(255,255,255,.92);color:#7a1212;border-color:#a31d1d}
-button.go,.sheet button.go{background:#a31d1d;color:#fff;border-color:#a31d1d}
-.sheet button.blue{background:rgba(255,255,255,.92);color:#7a1212;border-color:#a31d1d}
+.bar{background:rgba(16,50,42,.97);border-top:2px solid rgba(134,240,134,.6)}
+.bar button,.sheet button{background:rgba(30,76,64,.92);color:#d6ffd0;border-color:#86f086}
+button.go,.sheet button.go{background:#86f086;color:#25574b;border-color:#86f086}
+.sheet button.blue{background:rgba(30,76,64,.92);color:#d6ffd0;border-color:#86f086}
 button.no,.sheet button.no{color:#b45309;border-color:#b45309;background:transparent}
-.sheet{background:rgba(250,244,244,.98);border-top:3px solid #a31d1d;color:#2a1414}
-.sheet .small,.small{color:#7a4040}
-.sheet h2,.sheet h3{color:#7a1212}
-.sheet input[type=text],.sheet input[type=date],.sheet input[type=number],.sheet select,.sheet textarea{background:#fff;color:#2a1414;border-color:rgba(122,18,18,.35)}
-.orow{border-top:1px solid rgba(122,18,18,.25)}
-.notebox{background:#f8e9e9;border-color:rgba(122,18,18,.3)}
-#yr{background:#faf4f4;color:#7a1212;border-color:#a31d1d}
-#legend{background:rgba(250,244,244,.93);color:#2a1414}
-#fab,#fab2,#fabH{background:#faf4f4;border-color:#a31d1d}
-#fab svg,#fab2 svg,#fabH svg{stroke:#a31d1d}
-#fab svg circle[fill],#fab2 svg circle[fill]{fill:#a31d1d}
-.sheet .tk.on{background:#a31d1d;color:#fff}
+.sheet{background:rgba(16,50,42,.98);border-top:3px solid #86f086;color:#e4f3e6}
+.sheet .small,.small{color:#bfe3c8}
+.sheet h2,.sheet h3{color:#d6ffd0}
+.sheet input[type=text],.sheet input[type=date],.sheet input[type=number],.sheet select,.sheet textarea{background:#25574b;color:#e4f3e6;border-color:rgba(0,0,0,.35)}
+.orow{border-top:1px solid rgba(0,0,0,.25)}
+.notebox{background:#1d473c;border-color:rgba(0,0,0,.3)}
+#yr{background:#143a31;color:#d6ffd0;border-color:#86f086}
+#legend{background:rgba(16,50,42,.93);color:#e4f3e6}
+#fab,#fab2,#fabH{background:#143a31;border-color:#86f086}
+#fab svg,#fab2 svg,#fabH svg{stroke:#86f086}
+#fab svg circle[fill],#fab2 svg circle[fill]{fill:#86f086}
+.sheet .tk.on{background:#86f086;color:#25574b}
 .late{color:#b45309!important}
-#pinInfo{background:rgba(250,244,244,.96);color:#7a1212;border-color:#a31d1d}
-.npin{background:#faf4f4;border-color:#a31d1d;box-shadow:0 0 0 2px #fff}
-.nrow{border-top:1px solid rgba(122,18,18,.25)}.nrow .nd{color:#7a1212}
-.sheet .seg button.on{background:#a31d1d;color:#fff;border-color:#a31d1d}
-.pit{border-top:1px solid rgba(122,18,18,.25)}.pit .pt{color:#7a1212}
-.sheet .pit button.ck.on{background:#a31d1d;color:#fff;border-color:#a31d1d}
-.pg{color:#7a4040}
+#pinInfo{background:rgba(16,50,42,.96);color:#d6ffd0;border-color:#86f086}
+.npin{background:#143a31;border-color:#86f086;box-shadow:0 0 0 2px #25574b}
+.nrow{border-top:1px solid rgba(0,0,0,.25)}.nrow .nd{color:#d6ffd0}
+.sheet .seg button.on{background:#86f086;color:#25574b;border-color:#86f086}
+.pit{border-top:1px solid rgba(0,0,0,.25)}.pit .pt{color:#d6ffd0}
+.sheet .pit button.ck.on{background:#86f086;color:#25574b;border-color:#86f086}
+.pg{color:#bfe3c8}
 
 /* shiny gloss */
-button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit button.ck.on{background:linear-gradient(180deg,#d94a4a 0%,#b82525 46%,#8f1515 50%,#a31d1d 100%);border-color:#7a1212;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 4px rgba(122,18,18,.35)}
-.bar button,.sheet button{background:linear-gradient(180deg,#fff 0%,#f6e9e9 48%,#ecd6d6 52%,#f7ecec 100%);box-shadow:inset 0 1px 0 #fff,0 2px 4px rgba(122,18,18,.2)}
-.sheet button.go,.sheet .seg button.on{background:linear-gradient(180deg,#d94a4a 0%,#b82525 46%,#8f1515 50%,#a31d1d 100%)}
-.htiles button,.hlink{background:linear-gradient(180deg,rgba(255,255,255,.9) 0%,rgba(250,238,238,.72) 48%,rgba(240,220,220,.66) 52%,rgba(250,240,240,.74) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 3px 8px rgba(122,18,18,.25)}
-#fab,#fab2,#fabH,#yr{background:linear-gradient(180deg,#fff 0%,#f4e4e4 50%,#ead0d0 54%,#f7eaea 100%);box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(0,0,0,.35)}
+button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit button.ck.on{background:linear-gradient(180deg,#52c957 0%,#38a53e 46%,#277f30 50%,#86f086 100%);border-color:#d6ffd0;color:#25574b;text-shadow:0 1px 1px rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 4px rgba(0,0,0,.35)}
+.bar button,.sheet button{background:linear-gradient(180deg,#25574b 0%,#18372e 48%,#1b4a40 52%,#22524a 100%);box-shadow:inset 0 1px 0 #25574b,0 2px 4px rgba(0,0,0,.2)}
+.sheet button.go,.sheet .seg button.on{background:linear-gradient(180deg,#52c957 0%,#38a53e 46%,#277f30 50%,#86f086 100%)}
+.htiles button,.hlink{background:linear-gradient(180deg,rgba(30,76,64,.9) 0%,rgba(16,48,40,.72) 48%,rgba(10,32,27,.66) 52%,rgba(14,44,37,.74) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 3px 8px rgba(0,0,0,.25)}
+#fab,#fab2,#fabH,#yr{background:linear-gradient(180deg,#25574b 0%,#1c463b 50%,#184238 54%,#22524a 100%);box-shadow:inset 0 1px 0 #25574b,0 2px 6px rgba(0,0,0,.35)}
 
 /* legend matches the year box */
-#legend{background:linear-gradient(180deg,#fff 0%,#f4e4e4 50%,#ead0d0 54%,#f7eaea 100%);border:2px solid #a31d1d;border-radius:8px;color:#7a1212;box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(0,0,0,.35);padding:2px 0}
-#legend b{color:#7a1212}
+#legend{background:linear-gradient(180deg,#25574b 0%,#1c463b 50%,#184238 54%,#22524a 100%);border:2px solid #86f086;border-radius:8px;color:#d6ffd0;box-shadow:inset 0 1px 0 #25574b,0 2px 6px rgba(0,0,0,.35);padding:2px 0}
+#legend b{color:#d6ffd0}
 #legend i{border:1px solid rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
 /* markers */
 .pin.mk{border-radius:5px;transform:rotate(45deg)}
@@ -222,8 +222,12 @@ button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit butto
 .lbl2{font-size:10.5px}
 
 /* compass: twist the map with two fingers, tap this to point north up */
-#fabN{position:absolute;right:12px;top:calc(208px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid #a31d1d;color:#a31d1d;background:linear-gradient(180deg,#fff 0%,#f4e4e4 50%,#ead0d0 54%,#f7eaea 100%);box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:0}
+#fabN{position:absolute;right:12px;top:calc(208px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid #86f086;color:#86f086;background:linear-gradient(180deg,#25574b 0%,#1c463b 50%,#184238 54%,#22524a 100%);box-shadow:inset 0 1px 0 #25574b,0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:0}
 #cmp{transition:transform .15s}
+button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit button.ck.on{color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#143a31;color:#e4f3e6;border:1px solid #86f086}
+.leaflet-popup-content .small{color:#bfe3c8}.leaflet-popup-content b{color:#d6ffd0}.leaflet-popup-close-button{color:#d6ffd0!important}
+.leaflet-popup-content button{background:#25574b;color:#fff;border:2px solid #86f086}.leaflet-popup-content button.no{background:transparent;color:#ffb38a;border-color:#ffb38a}.leaflet-popup-content button.go{background:#38a53e;color:#fff}
 </style>
 </head>
 <body>
@@ -506,7 +510,7 @@ const topInfo=p=>p.length<3?'Tap corners ('+p.length+')':'<span>Area <b>'+(area(
 function upd(){handles({pts:draw.pts,poly:draw.poly,grp:draw.mk,info:'#dinfo',redo:upd})}
 $('#bDraw').onclick=()=>{
   const l=S.layers.find(x=>x.id===S.active);
-  draw={pts:[],poly:L.polygon([],{color:l?l.color:'#fff',weight:3,dashArray:'6 6',fillOpacity:.15}).addTo(map),mk:L.layerGroup().addTo(map)};
+  draw={pts:[],poly:L.polygon([],{color:l?l.color:'#25574b',weight:3,dashArray:'6 6',fillOpacity:.15}).addTo(map),mk:L.layerGroup().addTo(map)};
   $('#main').classList.add('hide');$('#drawbar').classList.remove('hide');upd();
 };
 map.on('click',e=>{if(!draw||xhOn)return;draw.pts.push([e.latlng.lat,e.latlng.lng]);upd()});
@@ -543,7 +547,7 @@ function saveHole(){
 const HLG=L.layerGroup().addTo(map);
 function cutSheet(id,k){
   const it=S.items.find(x=>x.id===id);if(!it||!holesOf(it)[k])return;const h=it.holes[k];map.closePopup();
-  HLG.clearLayers();const pg=L.polygon(h.pts,{color:'#ffffff',weight:4,dashArray:'8 6',fillColor:'#e5484d',fillOpacity:.45,interactive:false}).addTo(HLG);
+  HLG.clearLayers();const pg=L.polygon(h.pts,{color:'#25574bfff',weight:4,dashArray:'8 6',fillColor:'#e5484d',fillOpacity:.45,interactive:false}).addTo(HLG);
   try{map.fitBounds(pg.getBounds(),{padding:[60,60],maxZoom:18,paddingBottomRight:[60,Math.round(innerHeight*.5)]})}catch(e){}
   open('<h2 style="margin:0">Cutout'+(it.holes.length>1?' '+(k+1)+' of '+it.holes.length:'')+(h.name?': '+esc(h.name):'')+'</h2><div class="small">In '+esc(nameOf(it))+' · '+(area(h.pts)/4046.856).toFixed(2)+' ac taken out of the field</div>'+
     '<label>What is it?</label><input type="text" id="chn" value="'+esc(h.name||'')+'" placeholder="e.g. Slough, Yard">'+
@@ -1338,3 +1342,5 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 </script>
 </body>
 </html>
+
+#sheet,.sheet{color:#e4f3e6}.sheet input,.sheet select,.sheet textarea{background:#184238!important;color:#e4f3e6!important}.pop,.nrow .nt,.pit .pn{color:#e4f3e6}
