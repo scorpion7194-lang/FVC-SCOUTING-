@@ -224,6 +224,8 @@ button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit butto
 /* compass: twist the map with two fingers, tap this to point north up */
 #fabN{position:absolute;right:12px;top:calc(208px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid #86f086;color:#86f086;background:linear-gradient(180deg,#25574b 0%,#1c463b 50%,#184238 54%,#22524a 100%);box-shadow:inset 0 1px 0 #25574b,0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:0}
 #cmp{transition:transform .15s}
+
+#sheet,.sheet{color:#e4f3e6}.sheet input,.sheet select,.sheet textarea{background:#184238!important;color:#e4f3e6!important}.pop,.nrow .nt,.pit .pn{color:#e4f3e6}
 button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit button.ck.on{color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.6)}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#143a31;color:#e4f3e6;border:1px solid #86f086}
 .leaflet-popup-content .small{color:#bfe3c8}.leaflet-popup-content b{color:#d6ffd0}.leaflet-popup-close-button{color:#d6ffd0!important}
@@ -510,7 +512,7 @@ const topInfo=p=>p.length<3?'Tap corners ('+p.length+')':'<span>Area <b>'+(area(
 function upd(){handles({pts:draw.pts,poly:draw.poly,grp:draw.mk,info:'#dinfo',redo:upd})}
 $('#bDraw').onclick=()=>{
   const l=S.layers.find(x=>x.id===S.active);
-  draw={pts:[],poly:L.polygon([],{color:l?l.color:'#25574b',weight:3,dashArray:'6 6',fillOpacity:.15}).addTo(map),mk:L.layerGroup().addTo(map)};
+  draw={pts:[],poly:L.polygon([],{color:l?l.color:'#fff',weight:3,dashArray:'6 6',fillOpacity:.15}).addTo(map),mk:L.layerGroup().addTo(map)};
   $('#main').classList.add('hide');$('#drawbar').classList.remove('hide');upd();
 };
 map.on('click',e=>{if(!draw||xhOn)return;draw.pts.push([e.latlng.lat,e.latlng.lng]);upd()});
@@ -547,7 +549,7 @@ function saveHole(){
 const HLG=L.layerGroup().addTo(map);
 function cutSheet(id,k){
   const it=S.items.find(x=>x.id===id);if(!it||!holesOf(it)[k])return;const h=it.holes[k];map.closePopup();
-  HLG.clearLayers();const pg=L.polygon(h.pts,{color:'#25574bfff',weight:4,dashArray:'8 6',fillColor:'#e5484d',fillOpacity:.45,interactive:false}).addTo(HLG);
+  HLG.clearLayers();const pg=L.polygon(h.pts,{color:'#ffffff',weight:4,dashArray:'8 6',fillColor:'#e5484d',fillOpacity:.45,interactive:false}).addTo(HLG);
   try{map.fitBounds(pg.getBounds(),{padding:[60,60],maxZoom:18,paddingBottomRight:[60,Math.round(innerHeight*.5)]})}catch(e){}
   open('<h2 style="margin:0">Cutout'+(it.holes.length>1?' '+(k+1)+' of '+it.holes.length:'')+(h.name?': '+esc(h.name):'')+'</h2><div class="small">In '+esc(nameOf(it))+' · '+(area(h.pts)/4046.856).toFixed(2)+' ac taken out of the field</div>'+
     '<label>What is it?</label><input type="text" id="chn" value="'+esc(h.name||'')+'" placeholder="e.g. Slough, Yard">'+
@@ -1342,5 +1344,3 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 </script>
 </body>
 </html>
-
-#sheet,.sheet{color:#e4f3e6}.sheet input,.sheet select,.sheet textarea{background:#184238!important;color:#e4f3e6!important}.pop,.nrow .nt,.pit .pn{color:#e4f3e6}
