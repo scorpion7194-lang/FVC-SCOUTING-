@@ -412,18 +412,26 @@ function refreshYears(){
   $('#yr').value=YR;
 }
 $('#yr').onchange=()=>{YR=$('#yr').value;redraw()};
-function migrate(){S.notes=S.notes||[];S.fplan=S.fplan||{};S.fplan.groups=S.fplan.groups&&S.fplan.groups.length?S.fplan.groups:['Canola','Wheat','Barley','Spraying','Other'];S.fplan.items=S.fplan.items||[];S.fplan.years=S.fplan.years||[];S.tasks=S.tasks||[];S.sets=S.sets||[];S.rounds=S.rounds||[];if(S.round===undefined)S.round=null;S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())});
+function migrate(){S.notes=S.notes||[];if(!S.cropList)S.cropList=DEFCROPS.slice();S.fplan=S.fplan||{};S.fplan.groups=S.fplan.groups&&S.fplan.groups.length?S.fplan.groups:['Canola','Wheat','Barley','Spraying','Other'];S.fplan.items=S.fplan.items||[];S.fplan.years=S.fplan.years||[];S.tasks=S.tasks||[];S.sets=S.sets||[];S.rounds=S.rounds||[];if(S.round===undefined)S.round=null;S.layers.forEach(l=>{if(l.always===undefined)l.always=/^(fields|soil samples)$/i.test((l.name||'').trim())});
   /* old single field note -> first entry in the new notes list */
   S.items.forEach(i=>{if(i.type==='poly'&&!i.noteMig){const l=S.layers.find(x=>x.id===i.layer);if(l&&l.always){if(i.note&&String(i.note).trim())S.notes.push({id:uid(),field:i.id,date:i.date||new Date(i.t||Date.now()).toISOString().slice(0,10),type:'Other',text:String(i.note).trim(),photos:[],pos:null,t:i.t||Date.now()});i.note='';i.noteMig=true}}})}
 const CROPC={wheat:'#d64545',barley:'#43a047',canola:'#f2c94c',oats:'#fb8c00',peas:'#26a69a',silage:'#8e24aa',hay:'#1e88e5',alfalfa:'#1e88e5',fallow:'#9e9e9e',flax:'#5c6bc0',corn:'#cddc39',lentil:'#a1887f'};
 function cropColor(c){const k=c.toLowerCase().trim();if(S.cropColors&&S.cropColors[k])return S.cropColors[k];for(const n in CROPC)if(k.includes(n))return CROPC[n];let h=0;for(const ch of k)h=(h*31+ch.charCodeAt(0))%360;return 'hsl('+h+',55%,45%)'}
 const DEFCROPS=['Wheat','Barley','Canola','Oats','Peas','Silage','Hay','Fallow','Flax','Lentils'];
-function cropNames(){const m={};DEFCROPS.forEach(c=>m[c.toLowerCase()]=c);S.items.forEach(i=>Object.values(i.crops||{}).forEach(c=>{const k=c.toLowerCase().trim();if(k&&!m[k])m[k]=c.trim()}));return Object.values(m)}
+function cropNames(){const m={};(S.cropList||DEFCROPS).forEach(c=>m[c.toLowerCase().trim()]=c);S.items.forEach(i=>Object.values(i.crops||{}).forEach(c=>{const k=c.toLowerCase().trim();if(k&&!m[k])m[k]=c.trim()}));return Object.values(m)}
 function hex(c){const x=document.createElement('canvas').getContext('2d');x.fillStyle=c;return x.fillStyle}
+const cropInUse=c=>{const k=c.toLowerCase().trim();return S.items.some(i=>Object.values(i.crops||{}).some(x=>String(x).toLowerCase().trim()===k))};
+function ensureCrop(c){c=(c||'').trim();if(!c)return;S.cropList=S.cropList||DEFCROPS.slice();if(!S.cropList.some(x=>x.toLowerCase().trim()===c.toLowerCase()))S.cropList.push(c)}
 function cropColorRows(){
-  return '<h2 style="margin-top:16px;font-size:17px">Crop colours</h2><div class="small">Pick the colour each crop shows on the map.</div>'+
-  cropNames().map(c=>'<div class="row"><input type="color" value="'+hex(cropColor(c))+'" onchange="setCropColor(\''+encodeURIComponent(c)+'\',this.value)"><div style="flex:1;font-weight:600">'+esc(c)+'</div></div>').join('');
+  return '<h2 style="margin-top:16px;font-size:17px">Crops and colours</h2><div class="small">Pick the colour each crop shows on the map. Add your own crops below. Crops you type on a field are added here too.</div>'+
+  cropNames().map(c=>'<div class="row"><input type="color" value="'+hex(cropColor(c))+'" onchange="setCropColor(\''+encodeURIComponent(c)+'\',this.value)"><div style="flex:1;font-weight:600">'+esc(c)+'</div>'+(cropInUse(c)?'<span class="small">in use</span>':'<button class="no" onclick="cropRemove(\''+encodeURIComponent(c)+'\')">Remove</button>')+'</div>').join('')+
+  '<div class="row" style="margin-top:10px"><input type="color" id="ncc" value="#8e5ad7"><input type="text" id="ncn" placeholder="New crop, e.g. Durum" style="flex:1"><button class="go" onclick="cropAdd()">Add</button></div>';
 }
+function cropAdd(){
+  const n=$('#ncn').value.trim();if(!n){alert('Type the name of the crop first.');return}
+  ensureCrop(n);S.cropColors=S.cropColors||{};S.cropColors[n.toLowerCase()]=$('#ncc').value;save();redraw();layersSheet();
+}
+function cropRemove(n){n=decodeURIComponent(n);if(cropInUse(n)){alert(n+' is on a field, so it stays in the list.');return}if(!confirm('Remove '+n+' from your crop list?'))return;S.cropList=(S.cropList||[]).filter(x=>x.toLowerCase().trim()!==n.toLowerCase().trim());save();layersSheet()}
 function setCropColor(n,v){S.cropColors=S.cropColors||{};S.cropColors[decodeURIComponent(n).toLowerCase().trim()]=v;save();redraw()}
 const cropYear=()=>YR==='all'?String(new Date().getFullYear()):YR;
 const cropOf=(i,l)=>S.byCrop!==false&&l.always&&i.crops?i.crops[cropYear()]:'';
@@ -573,13 +581,13 @@ let detYr='';
 function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);if(it.type==='obs')return obsDetails(id);if(it.type==='mk')return markSheet(null,null,id);map.closePopup();detYr=cropYear();
   const groups=[...new Set(S.items.filter(x=>x.type==='poly'&&x.group).map(x=>x.group))];
   const fld=it.type==='poly'&&l.always;
-  const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+'<label>Variety for '+detYr+'</label><input type="text" id="dv" value="'+esc((it.varieties||{})[detYr]||'')+'" placeholder="e.g. L345PC, AC Foremost">'+'<label>Seeded date for '+detYr+'</label><input type="date" id="dsd" value="'+esc((it.seeded||{})[detYr]||'')+'">'+
+  const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+cropNames().map(c=>'<option>'+esc(c)+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+'<label>Variety for '+detYr+'</label><input type="text" id="dv" value="'+esc((it.varieties||{})[detYr]||'')+'" placeholder="e.g. L345PC, AC Foremost">'+'<label>Seeded date for '+detYr+'</label><input type="date" id="dsd" value="'+esc((it.seeded||{})[detYr]||'')+'">'+
     '<label>Group name (fields farmed as one)</label><input type="text" id="dg" list="grpl" value="'+esc(it.group||'')+'" placeholder="e.g. Kersey 640"><datalist id="grpl">'+groups.map(g=>'<option>'+esc(g)+'</option>').join('')+'</datalist><div class="small">Give separate fields the same group name and they are labelled, cropped and tracked as one field. Leave empty if it stands alone.</div>':'';
   open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'">'+(fld?'':'<label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea>')+'<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
 function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;if($('#dt'))it.note=$('#dt').value.trim();
   if($('#dg')){const g=$('#dg').value.trim();if(g)it.group=g;else delete it.group}
   if($('#dc')){it.crops=it.crops||{};const prev=it.crops[detYr],c=$('#dc').value.trim(),mem=it.group?S.items.filter(x=>x.type==='poly'&&x.group===it.group):[it];
-    if(c)mem.forEach(x=>{x.crops=x.crops||{};x.crops[detYr]=c});
+    if(c){ensureCrop(c);mem.forEach(x=>{x.crops=x.crops||{};x.crops[detYr]=c})}
     else if(prev)mem.forEach(x=>{if(x.crops)delete x.crops[detYr]});
     else{const o=mem.find(x=>x!==it&&x.crops&&x.crops[detYr]);if(o)it.crops[detYr]=o.crops[detYr]}}
   if($('#dv')){const v=$('#dv').value.trim(),m3=it.group?S.items.filter(x=>x.type==='poly'&&x.group===it.group):[it];m3.forEach(x=>{x.varieties=x.varieties||{};if(v)x.varieties[detYr]=v;else delete x.varieties[detYr]})}
@@ -931,7 +939,7 @@ function scoutRender(){
   '<div class="catgrid seg" id="sctiles">'+CATSA.map(c=>'<button data-k="'+c.k+'" onclick="scPick(\''+c.k+'\')">'+c.n+'</button>').join('')+'</div>'+
   '<label>Severity</label><div class="seg" id="scsev">'+SEV.map(v=>'<button data-v="'+v+'" onclick="scSev(\''+v+'\')">'+v+'</button>').join('')+'</div>'+
   '<label>What exactly? (optional)</label><input type="text" id="scw" list="scl" value="'+esc(sc.what)+'" placeholder="e.g. Wild oats"><datalist id="scl"></datalist>'+
-  '<label>Crop</label><input type="text" id="scc" list="cropl" value="'+esc(sc.crop)+'" placeholder="e.g. Wheat"><datalist id="cropl">'+DEFCROPS.map(c=>'<option>'+c+'</option>').join('')+'</datalist>'+
+  '<label>Crop</label><input type="text" id="scc" list="cropl" value="'+esc(sc.crop)+'" placeholder="e.g. Wheat"><datalist id="cropl">'+cropNames().map(c=>'<option>'+esc(c)+'</option>').join('')+'</datalist>'+
   '<label>Growth stage</label><select id="scs"><option value="">Not recorded</option>'+STAGES+'</select>'+
   '<label>Photos</label><button type="button" id="scph" style="width:100%">📷 Take photo</button><input type="file" id="scf" accept="image/*" capture="environment" multiple hidden><div id="scpics"></div>'+
   '<label>Location</label><div id="scloc" class="small"></div><div class="two"><button type="button" onclick="scUseGps()">Use my GPS</button><button type="button" onclick="scDrop()">Drop location</button></div>'+
