@@ -359,7 +359,8 @@ const per=p=>{let t=0;for(let i=0;i<p.length;i++)t+=dist(p[i],p[(i+1)%p.length])
 const fmtLen=m=>{const f=m*3.28084;return f>=1320?(f/5280).toFixed(2)+' mi':Math.round(f)+' ft'};
 const holesOf=i=>i.holes||[];
 const netArea=i=>area(i.pts)-holesOf(i).reduce((a,h)=>a+area(h.pts),0);
-const members=i=>i.group?S.items.filter(x=>x.type==='poly'&&x.group===i.group):[i];
+const lyAlw=x=>{const l=S.layers.find(y=>y.id===x.layer);return !!(l&&l.always)};
+const members=i=>i.group?S.items.filter(x=>x.type==='poly'&&x.group===i.group&&(x.layer===i.layer||(lyAlw(x)&&lyAlw(i)))):[i];
 const acOf=a=>(a/4046.856).toFixed(1);
 function polyInfo(i,noCuts){
   let h='<div>'+fmt(netArea(i))+', perimeter '+fmtLen(per(i.pts))+(holesOf(i).length?' (after cutouts)':'')+'</div>';
@@ -587,12 +588,20 @@ $('#eCancel').onclick=endEdit;
 $('#eDone').onclick=()=>{edit.it.pts=edit.pts;save();endEdit()};
 let detYr='';
 function detailsSheet(id){const it=S.items.find(i=>i.id===id),l=S.layers.find(x=>x.id===it.layer);if(it.type==='obs')return obsDetails(id);if(it.type==='mk')return markSheet(null,null,id);map.closePopup();detYr=cropYear();
-  const groups=[...new Set(S.items.filter(x=>x.type==='poly'&&x.group).map(x=>x.group))];
+  const groups=[...new Set(S.items.filter(x=>x.type==='poly'&&x.group&&(x.layer===it.layer||(lyAlw(x)&&lyAlw(it)))).map(x=>x.group))];
   const fld=it.type==='poly'&&l.always;
   const crop=fld?'<label>Crop for '+detYr+'</label><input type="text" id="dc" list="cropl" value="'+esc((it.crops||{})[detYr]||'')+'" placeholder="e.g. Barley"><datalist id="cropl">'+cropNames().map(c=>'<option>'+esc(c)+'</option>').join('')+'</datalist><div class="small">Each year has its own crop. Change the year box at the top to set another year.</div>'+'<label>Variety for '+detYr+'</label><input type="text" id="dv" value="'+esc((it.varieties||{})[detYr]||'')+'" placeholder="e.g. L345PC, AC Foremost">'+'<label>Seeded date for '+detYr+'</label><input type="date" id="dsd" value="'+esc((it.seeded||{})[detYr]||'')+'">'+
     '<label>Group name (fields farmed as one)</label><input type="text" id="dg" list="grpl" value="'+esc(it.group||'')+'" placeholder="e.g. Kersey 640"><datalist id="grpl">'+groups.map(g=>'<option>'+esc(g)+'</option>').join('')+'</datalist><div class="small">Give separate fields the same group name and they are labelled, cropped and tracked as one field. Leave empty if it stands alone.</div>':'';
-  open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'">'+(fld?'':'<label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea>')+'<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>')}
-function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;it.date=$('#dd').value;if($('#dt'))it.note=$('#dt').value.trim();
+  open('<h2>Details</h2><label>Name</label><input type="text" id="dn" value="'+esc(it.name)+'">'+(it.type==='pt'?'<label>Layer</label><select id="dly">'+layerOpts(it.layer)+'</select>':'')+crop+'<label>Date</label><input type="date" id="dd" value="'+esc(it.date||'')+'">'+(it.type==='poly'&&!fld?'<label>Group name (parts of one patch or job)</label><input type="text" id="dg" list="grpl" value="'+esc(it.group||'')+'" placeholder="e.g. North patch"><datalist id="grpl">'+groups.map(g=>'<option>'+esc(g)+'</option>').join('')+'</datalist><div class="small">Give pieces the same group name within this layer and they are labelled and added up as one. Leave empty if it stands alone.</div>':'')+(fld?'':'<label>Notes</label><textarea id="dt" rows="4">'+esc(it.note||'')+'</textarea>')+'<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="saveDetails(\''+id+'\')">Save</button></div>'+(it.type==='pt'?'<div class="small" style="margin-top:12px">Not a soil sample? Change it to a marker and it moves to the Markers layer.</div><div class="btns"><button onclick="ptToMarker(\''+id+'\')">Change to a marker</button></div>':''))}
+function ptToMarker(id){
+  const it=S.items.find(i=>i.id===id);if(!it||it.type!=='pt')return;
+  if(!confirm('Change "'+(it.name||'this spot')+'" to a marker? It will no longer count as a soil sample spot.'))return;
+  let m=S.layers.find(x=>x.id===S.mkLayer)||S.layers.find(x=>x.name==='Markers');
+  if(!m){m={id:uid(),name:'Markers',color:'#ff8a00',visible:true};S.layers.push(m)}
+  m.visible=true;S.mkLayer=m.id;it.type='mk';it.layer=m.id;delete it.depth;delete it.samples;
+  if(S.round){S.round.spots=S.round.spots.filter(x=>x!==id);delete S.round.done[id]}
+  save();closeSheet();redraw()}
+function saveDetails(id){const it=S.items.find(i=>i.id===id);it.name=$('#dn').value.trim()||it.name;if($('#dly')){it.layer=$('#dly').value;const ly=S.layers.find(x=>x.id===it.layer);if(ly)ly.visible=true}it.date=$('#dd').value;if($('#dt'))it.note=$('#dt').value.trim();
   if($('#dg')){const g=$('#dg').value.trim();if(g)it.group=g;else delete it.group}
   if($('#dc')){it.crops=it.crops||{};const prev=it.crops[detYr],c=$('#dc').value.trim(),mem=it.group?S.items.filter(x=>x.type==='poly'&&x.group===it.group):[it];
     if(c){ensureCrop(c);mem.forEach(x=>{x.crops=x.crops||{};x.crops[detYr]=c})}
@@ -624,9 +633,9 @@ function endPin(){pin=false;pinKind=null;document.body.classList.remove('pinning
 function pinOn(kind){
   pinKind=kind||null;
   if(pinKind==='mk'){let m=S.layers.find(x=>x.id===S.mkLayer)||S.layers.find(x=>x.name==='Markers');if(!m){m={id:uid(),name:'Markers',color:'#ff8a00',visible:true};S.layers.push(m);save()}S.mkLayer=m.id;m.visible=true;redraw()}
-  else{let l=S.layers.find(x=>x.name==='Soil samples');
-  if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true,always:true};S.layers.push(l);save()}
-  l.visible=true;if(!S.ptLayer)S.ptLayer=l.id;redraw()}
+  else{let l=S.layers.find(x=>x.name.toLowerCase().trim()==='soil samples')||S.layers.find(x=>/soil/i.test(x.name));
+  if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true,always:true};S.layers.push(l)}
+  l.visible=true;l.always=true;S.ptLayer=l.id;save();redraw()}
   pin=true;document.body.classList.add('pinning');$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#pinbar').classList.remove('round');$('#xh').classList.remove('hide');if(!watching)startGps();
 }
 $('#bPt').onclick=()=>soilStart();
