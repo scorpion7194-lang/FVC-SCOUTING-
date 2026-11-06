@@ -674,8 +674,13 @@ function markSheet(pos,acc,id){
   '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="markSave('+pos[0]+','+pos[1]+','+(acc||0)+',\''+(id||'')+'\')">Save</button></div>');
   mkPhotos();
 }
+function flashAt(pos){
+  try{HLG.clearLayers();L.circleMarker(pos,{radius:26,color:'#ffffff',weight:4,fillColor:'#e5484d',fillOpacity:.45,interactive:false}).addTo(HLG);
+  L.circleMarker(pos,{radius:8,color:'#000',weight:2,fillColor:'#ffffff',fillOpacity:1,interactive:false}).addTo(HLG);setTimeout(()=>HLG.clearLayers(),2600)}catch(e){}
+}
 let ssT=0;
-function spotSaved(){
+function spotSaved(pos){
+  if(pos)flashAt(pos);
   const xh=$('#xh'),t=$('#spotToast');if(!t)return;
   if(xh&&!xh.classList.contains('hide')){xh.style.opacity='0'}
   t.classList.remove('hide');clearTimeout(ssT);
@@ -685,15 +690,15 @@ function markSave(a,b,acc,id){
   const name=$('#mkn').value.trim()||'Marker',date=$('#mkd').value,note=$('#mkt').value.trim();
   if(id){const it=S.items.find(x=>x.id===id);if(it){it.name=name;it.date=date;it.note=note;it.photos=mkPh.slice()}}
   else S.items.push({id:uid(),type:'mk',layer:S.mkLayer,name,pos:[a,b],acc:acc||null,date,note,photos:mkPh.slice(),t:Date.now()});
-  mkPh=[];save();closeSheet();redraw();if(!id)spotSaved()
+  mkPh=[];save();closeSheet();redraw();if(!id)spotSaved([a,b])
 }
 function markGo(id){const i=S.items.find(x=>x.id===id);if(!i)return;closeSheet();map.setView(i.pos,Math.max(map.getZoom(),18));setTimeout(()=>{const l=S.layers.find(x=>x.id===i.layer);if(l)L.popup().setLatLng(i.pos).setContent(pop(i,l)).openOn(map)},250)}
 function markersOf(f){const mm=members(f);return S.items.filter(i=>i.type==='mk'&&(YR==='all'||yrOf(i)===+YR)&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(b).localeCompare(dkey(a)))}
 function savePt(a,b,acc){
   const nb=nearPt([a,b],$('#tdt').value);if(nb&&!confirm(nearMsg(nb)))return;
-  S.ptLayer=$('#tl').value;S.lastPt=$('#tn').value.trim();
+  S.ptLayer=$('#tl').value;S.lastPt=$('#tn').value.trim();{const pl=S.layers.find(x=>x.id===S.ptLayer);if(pl){pl.visible=true;pl.always=true}}
   S.items.push({id:uid(),type:'pt',layer:S.ptLayer,name:S.lastPt||'Point',pos:[a,b],acc:acc||null,depth:$('#td').value,date:$('#tdt').value,note:$('#tt').value.trim(),photos:[],t:Date.now()});
-  save();closeSheet();redraw();spotSaved();
+  save();closeSheet();redraw();spotSaved([a,b]);
 }
 
 /* soil sampling: map the spots once, then sample a field round by round */
