@@ -224,6 +224,13 @@ button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit butto
 /* compass: twist the map with two fingers, tap this to point north up */
 #fabN{position:absolute;right:12px;top:calc(208px + env(safe-area-inset-top,0px));z-index:1000;width:52px;height:52px;border-radius:50%;border:2px solid #a31d1d;color:#a31d1d;background:linear-gradient(180deg,#fff 0%,#f4e4e4 50%,#ead0d0 54%,#f7eaea 100%);box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:0}
 #cmp{transition:transform .15s}
+/* while placing spots: hide field name boxes so they cannot cover the new spot, make spots stand out */
+body.pinning .leaflet-tooltip-pane{display:none}
+#spotToast{position:absolute;left:12px;right:12px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:1200;padding:12px 14px;border-radius:12px;background:#a31d1d;color:#fff;font-weight:600;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,.4);pointer-events:none}
+#spotToast.hide{display:none}
+body.pinning .pin{box-shadow:0 0 0 2px #000,0 0 0 5px #fff}
+#xh{transition:opacity .15s}
+.bar button.go{background:linear-gradient(180deg,#d94a4a 0%,#b82525 46%,#8f1515 50%,#a31d1d 100%);color:#fff;border-color:#7a1212;text-shadow:0 1px 1px rgba(0,0,0,.35)}
 </style>
 </head>
 <body>
@@ -263,6 +270,7 @@ button.go,.sheet button.go,.sheet .seg button.on,.sheet .tk.on,.sheet .pit butto
 <button id="fabN" aria-label="Turn map north"><svg id="cmp" width="30" height="30" viewBox="0 0 24 24"><path d="M12 2l5 10H7z" fill="currentColor"/><path d="M12 22L7 12h10z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
 <div id="lb" class="hide" onclick="this.classList.add('hide')"><img id="lbimg" alt=""><div>Tap anywhere to close</div></div>
 <div id="xh" class="hide"></div>
+<div id="spotToast" class="hide">Spot saved. It is the dot where the crosshair was.</div>
 <div class="bar hide" id="drawbar">
   <div id="dinfo"></div>
   <div class="r"><button id="dCancel" class="no">Cancel</button><button id="dUndo">Undo</button><button id="dDone" class="go">Finish</button></div>
@@ -612,14 +620,14 @@ function restoreData(){
 
 /* soil sample points: crosshair or GPS, repeat quickly */
 let pin=false,pinKind=null;
-function endPin(){pin=false;pinKind=null;document.body.classList.remove('rnd');clearInterval(rTimer);$('#pinbar').classList.remove('round');$('#pinInfo').classList.add('hide');$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
+function endPin(){pin=false;pinKind=null;document.body.classList.remove('pinning');document.body.classList.remove('rnd');clearInterval(rTimer);$('#pinbar').classList.remove('round');$('#pinInfo').classList.add('hide');$('#pinbar').classList.add('hide');$('#xh').classList.add('hide');$('#main').classList.remove('hide')}
 function pinOn(kind){
   pinKind=kind||null;
   if(pinKind==='mk'){let m=S.layers.find(x=>x.id===S.mkLayer)||S.layers.find(x=>x.name==='Markers');if(!m){m={id:uid(),name:'Markers',color:'#ff8a00',visible:true};S.layers.push(m);save()}S.mkLayer=m.id;m.visible=true;redraw()}
   else{let l=S.layers.find(x=>x.name==='Soil samples');
   if(!l){l={id:uid(),name:'Soil samples',color:'#8e5ad7',visible:true,always:true};S.layers.push(l);save()}
   l.visible=true;if(!S.ptLayer)S.ptLayer=l.id;redraw()}
-  pin=true;$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#pinbar').classList.remove('round');$('#xh').classList.remove('hide');if(!watching)startGps();
+  pin=true;document.body.classList.add('pinning');$('#main').classList.add('hide');$('#pinbar').classList.remove('hide');$('#pinbar').classList.remove('round');$('#xh').classList.remove('hide');if(!watching)startGps();
 }
 $('#bPt').onclick=()=>soilStart();
 $('#pCancel').onclick=endPin;
@@ -666,11 +674,18 @@ function markSheet(pos,acc,id){
   '<div class="btns"><button onclick="closeSheet()">Cancel</button><button class="go" onclick="markSave('+pos[0]+','+pos[1]+','+(acc||0)+',\''+(id||'')+'\')">Save</button></div>');
   mkPhotos();
 }
+let ssT=0;
+function spotSaved(){
+  const xh=$('#xh'),t=$('#spotToast');if(!t)return;
+  if(xh&&!xh.classList.contains('hide')){xh.style.opacity='0'}
+  t.classList.remove('hide');clearTimeout(ssT);
+  ssT=setTimeout(()=>{t.classList.add('hide');if(xh)xh.style.opacity=''},2200)
+}
 function markSave(a,b,acc,id){
   const name=$('#mkn').value.trim()||'Marker',date=$('#mkd').value,note=$('#mkt').value.trim();
   if(id){const it=S.items.find(x=>x.id===id);if(it){it.name=name;it.date=date;it.note=note;it.photos=mkPh.slice()}}
   else S.items.push({id:uid(),type:'mk',layer:S.mkLayer,name,pos:[a,b],acc:acc||null,date,note,photos:mkPh.slice(),t:Date.now()});
-  mkPh=[];save();closeSheet();redraw()
+  mkPh=[];save();closeSheet();redraw();if(!id)spotSaved()
 }
 function markGo(id){const i=S.items.find(x=>x.id===id);if(!i)return;closeSheet();map.setView(i.pos,Math.max(map.getZoom(),18));setTimeout(()=>{const l=S.layers.find(x=>x.id===i.layer);if(l)L.popup().setLatLng(i.pos).setContent(pop(i,l)).openOn(map)},250)}
 function markersOf(f){const mm=members(f);return S.items.filter(i=>i.type==='mk'&&(YR==='all'||yrOf(i)===+YR)&&mm.some(m=>ptIn(m.pts,i.pos)&&!holesOf(m).some(h=>ptIn(h.pts,i.pos)))).sort((a,b)=>dkey(b).localeCompare(dkey(a)))}
@@ -678,7 +693,7 @@ function savePt(a,b,acc){
   const nb=nearPt([a,b],$('#tdt').value);if(nb&&!confirm(nearMsg(nb)))return;
   S.ptLayer=$('#tl').value;S.lastPt=$('#tn').value.trim();
   S.items.push({id:uid(),type:'pt',layer:S.ptLayer,name:S.lastPt||'Point',pos:[a,b],acc:acc||null,depth:$('#td').value,date:$('#tdt').value,note:$('#tt').value.trim(),photos:[],t:Date.now()});
-  save();closeSheet();redraw();
+  save();closeSheet();redraw();spotSaved();
 }
 
 /* soil sampling: map the spots once, then sample a field round by round */
